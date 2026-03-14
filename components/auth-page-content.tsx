@@ -11,7 +11,7 @@ import Image from "next/image"
 import { authApi } from "@/lib/auth-api"
 import { useAuth } from "@/contexts/auth-context"
 
-/* ─── Login Forrm ─── */
+/* ─── Login Forrrm ─── */
 function LoginForm() {
   const { login } = useAuth()
   const router = useRouter()
