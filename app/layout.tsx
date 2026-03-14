@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { DM_Sans } from 'next/font/google'
 import './globals.css'
+import { AuthProvider } from '@/contexts/auth-context'
+import { CreateAnnouncementButton } from '@/components/create-announcement-form'
 
 const dmSans = DM_Sans({ subsets: ['latin'] })
 
@@ -17,7 +19,10 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body className={`${dmSans.className} font-sans antialiased`}>
-        {children}
+        <AuthProvider>
+          {children}
+          <CreateAnnouncementButton />
+        </AuthProvider>
       </body>
     </html>
   )
