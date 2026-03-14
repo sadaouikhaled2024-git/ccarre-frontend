@@ -247,7 +247,7 @@ export default function PrivacyPage() {
                     Cette politique de confidentialité peut être modifiée afin de refléter l'évolution de la plateforme.
                   </p>
                   <p className="text-muted-foreground leading-relaxed">
-                    Les utilisateurs seront informés en cas de modification importante.
+                    Les  utilisateurs seront informés en cas de modification importante.
                   </p>
                 </section>
 

@@ -27,7 +27,7 @@ export default function InfoPage() {
               <h2 className="mb-4 text-2xl font-bold text-foreground">Notre Mission</h2>
               <p className="text-lg text-muted-foreground leading-relaxed">
                 CCarré est une plateforme innovante créée pour faciliter l'échange de biens et
-                de services entre étudiants de l'Université Aix-Marseille. Notre objectif est de
+                de services entre étudiants de l'Université Aix-Marseille. Notre  objectif est de
                 créer une communauté solidaire où les étudiants peuvent acheter, vendre et
                 échanger des articles de manière sécurisée et conviviale.
               </p>
