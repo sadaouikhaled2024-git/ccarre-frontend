@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button"
 import {
   Menu,
   X,
-  Megaphone,
-  Clock,
-  Plus,
+  ShoppingCart,
+  Heart,
+  MessageCircle,
   Info,
   Settings,
   LogOut,
@@ -41,43 +41,59 @@ export function Navbar() {
     : "U"
 
   return (
-    <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
-      <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+    <header className="sticky top-0 z-50 bg-background border-b border-border">
+      <nav className="mx-auto flex h-[60px] max-w-6xl items-center justify-between px-6">
         <Link href={isAuthenticated ? "/announcements" : "/"} className="flex items-center">
-          <Image src="/logoc.png" alt="CCarré" width={200} height={80} className="h-14 w-auto" />
+          <Image src="/ccare.png" alt="CCarré" width={300} height={120} className="h-16 w-auto" />
         </Link>
 
         {/* Desktop nav */}
-        <div className="hidden items-center gap-6 md:flex">
+        <div className="hidden items-center gap-5 md:flex">
           {isAuthenticated ? (
             <>
-              <div className="flex items-center gap-6">
-                {/* Annonces */}
-                <Link
-                  href="/announcements"
-                  className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
-                  title="Annonces"
-                >
-                  <Megaphone className="size-5" />
-                </Link>
+              {/* Annonces */}
+              <Link
+                href="/announcements"
+                className="group flex flex-col items-center gap-0.5 transition-colors"
+              >
+                <ShoppingCart strokeWidth={2} className="size-6 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <span className="text-[10px] font-medium text-muted-foreground group-hover:text-foreground transition-colors whitespace-nowrap">
+                  Annonces
+                </span>
+                <div className="h-0.5 w-10 bg-rose-500 origin-center scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
+              </Link>
 
-                {/* Historique */}
-                <Link
-                  href="/announcements"
-                  className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
-                  title="Historique"
-                >
-                  <Clock className="size-5" />
-                </Link>
-              </div>
+              {/* Favoris */}
+              <Link
+                href="/favorites"
+                className="group flex flex-col items-center gap-0.5 transition-colors"
+              >
+                <Heart strokeWidth={2} className="size-6 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <span className="text-[10px] font-medium text-muted-foreground group-hover:text-foreground transition-colors whitespace-nowrap">
+                  Favoris
+                </span>
+                <div className="h-0.5 w-10 bg-rose-500 origin-center scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
+              </Link>
+
+              {/* Messagerie */}
+              <Link
+                href="/messaging"
+                className="group flex flex-col items-center gap-0.5 transition-colors"
+              >
+                <MessageCircle strokeWidth={2} className="size-6 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <span className="text-[10px] font-medium text-muted-foreground group-hover:text-foreground transition-colors whitespace-nowrap">
+                  Messagerie
+                </span>
+                <div className="h-0.5 w-10 bg-rose-500 origin-center scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
+              </Link>
 
               {/* Profile Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex items-center justify-center rounded-full w-10 h-10 bg-muted hover:bg-muted/80 transition-colors border border-border">
+                  <button className="flex flex-col items-center gap-0.5 rounded-full transition-colors group">
                     <Avatar className="h-9 w-9">
                       <AvatarImage src={user?.profileImage as string | undefined} alt={`${user?.firstName} ${user?.lastName}`} />
-                      <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
+                      <AvatarFallback className="bg-primary text-primary-foreground text-[10px] font-semibold">
                         {userInitials}
                       </AvatarFallback>
                     </Avatar>
@@ -178,14 +194,21 @@ export function Navbar() {
                   className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
                   onClick={() => setMobileOpen(false)}
                 >
-                  Historique
+                  Annonces
                 </Link>
                 <Link
-                  href="/announcements/create"
+                  href="/favorites"
                   className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
                   onClick={() => setMobileOpen(false)}
                 >
-                  Créer une annonce
+                  Favoris
+                </Link>
+                <Link
+                  href="/messaging"
+                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Messagerie
                 </Link>
                 <Link
                   href="/info"
