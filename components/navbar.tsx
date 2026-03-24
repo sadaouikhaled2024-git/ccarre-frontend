@@ -3,10 +3,28 @@
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { Menu, X, LogOut, User } from "lucide-react"
+import {
+  Menu,
+  X,
+  ShoppingCart,
+  Heart,
+  MessageCircle,
+  Info,
+  Settings,
+  LogOut,
+  User,
+} from "lucide-react"
 import { useState } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { useRouter } from "next/navigation"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -18,41 +36,102 @@ export function Navbar() {
     router.push("/")
   }
 
+  const userInitials = user
+    ? `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`
+    : "U"
+
   return (
-    <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
-      <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+    <header className="sticky top-0 z-50 bg-background border-b border-border">
+      <nav className="mx-auto flex h-[60px] max-w-6xl items-center justify-between px-6">
         <Link href={isAuthenticated ? "/announcements" : "/"} className="flex items-center">
-          <Image src="/logoc.png" alt="CCarré" width={200} height={80} className="h-14 w-auto" />
+          <Image src="/ccare.png" alt="CCarré" width={300} height={120} className="h-16 w-auto" />
         </Link>
 
         {/* Desktop nav */}
-        <div className="hidden items-center gap-8 md:flex">
+        <div className="hidden items-center gap-5 md:flex">
           {isAuthenticated ? (
             <>
+              {/* Annonces */}
               <Link
                 href="/announcements"
-                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                className="group flex flex-col items-center gap-0.5 transition-colors"
               >
-                Annonces
-              </Link>
-              <Link
-                href="/profile"
-                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <span className="flex items-center gap-2">
-                  <User className="size-4" />
-                  {user?.firstName ?? "Profil"}
+                <ShoppingCart strokeWidth={2} className="size-6 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <span className="text-[10px] font-medium text-muted-foreground group-hover:text-foreground transition-colors whitespace-nowrap">
+                  Annonces
                 </span>
+                <div className="h-0.5 w-10 bg-rose-500 origin-center scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
               </Link>
-              <Button
-                onClick={handleLogout}
-                variant="outline"
-                size="sm"
-                className="gap-2"
+
+              {/* Favoris */}
+              <Link
+                href="/favorites"
+                className="group flex flex-col items-center gap-0.5 transition-colors"
               >
-                <LogOut className="size-4" />
-                Déconnexion
-              </Button>
+                <Heart strokeWidth={2} className="size-6 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <span className="text-[10px] font-medium text-muted-foreground group-hover:text-foreground transition-colors whitespace-nowrap">
+                  Favoris
+                </span>
+                <div className="h-0.5 w-10 bg-rose-500 origin-center scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
+              </Link>
+
+              {/* Messagerie */}
+              <Link
+                href="/messaging"
+                className="group flex flex-col items-center gap-0.5 transition-colors"
+              >
+                <MessageCircle strokeWidth={2} className="size-6 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <span className="text-[10px] font-medium text-muted-foreground group-hover:text-foreground transition-colors whitespace-nowrap">
+                  Messagerie
+                </span>
+                <div className="h-0.5 w-10 bg-rose-500 origin-center scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
+              </Link>
+
+              {/* Profile Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex flex-col items-center gap-0.5 rounded-full transition-colors group">
+                    <Avatar className="h-9 w-9">
+                      <AvatarImage src={user?.profileImage as string | undefined} alt={`${user?.firstName} ${user?.lastName}`} />
+                      <AvatarFallback className="bg-primary text-primary-foreground text-[10px] font-semibold">
+                        {userInitials}
+                      </AvatarFallback>
+                    </Avatar>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <div className="px-2 py-1.5">
+                    <p className="text-sm font-semibold text-foreground">
+                      {user?.firstName} {user?.lastName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{user?.email}</p>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile" className="cursor-pointer">
+                      <User className="size-4 mr-2" />
+                      <span>Profil</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile" className="cursor-pointer">
+                      <Settings className="size-4 mr-2" />
+                      <span>Paramètres</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/info" className="cursor-pointer">
+                      <Info className="size-4 mr-2" />
+                      <span>À propos</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
+                    <LogOut className="size-4 mr-2" />
+                    <span>Déconnexion</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           ) : (
             <>
@@ -67,6 +146,12 @@ export function Navbar() {
                 className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
                 Fonctionnalités
+              </Link>
+              <Link
+                href="/info"
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                À propos
               </Link>
               <Link
                 href="/auth"
@@ -105,11 +190,39 @@ export function Navbar() {
                   Annonces
                 </Link>
                 <Link
+                  href="/announcements"
+                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Annonces
+                </Link>
+                <Link
+                  href="/favorites"
+                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Favoris
+                </Link>
+                <Link
+                  href="/messaging"
+                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Messagerie
+                </Link>
+                <Link
+                  href="/info"
+                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  À propos
+                </Link>
+                <Link
                   href="/profile"
                   className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
                   onClick={() => setMobileOpen(false)}
                 >
-                  Profil
+                  Paramètres
                 </Link>
                 <Button
                   onClick={() => { handleLogout(); setMobileOpen(false) }}
@@ -138,6 +251,13 @@ export function Navbar() {
                   Fonctionnalités
                 </Link>
                 <Link
+                  href="/info"
+                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  À propos
+                </Link>
+                <Link
                   href="/auth"
                   className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
                   onClick={() => setMobileOpen(false)}
@@ -145,7 +265,7 @@ export function Navbar() {
                   Connexion
                 </Link>
                 <Button asChild size="lg" className="w-full rounded-lg bg-primary text-primary-foreground hover:bg-accent">
-                  <Link href="/auth?tab=register">{"S'inscrire"}</Link>
+                  <Link href="/auth?tab=register" onClick={() => setMobileOpen(false)}>{"S'inscrire"}</Link>
                 </Button>
               </>
             )}

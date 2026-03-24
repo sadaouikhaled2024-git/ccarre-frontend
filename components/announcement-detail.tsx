@@ -3,115 +3,74 @@
 import Image from "next/image"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ContactForm } from "@/components/contact-form"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-
-// Mock data - in a real app, this would come from an API/database
-const announcementDetails: Record<
-  string,
-  {
-    id: number
-    title: string
-    description: string
-    fullDescription: string
-    images: string[]
-    publisherFirstName: string
-    publisherLastName: string
-    publishedAt: string
-  }
-> = {
-  "1": {
-    id: 1,
-    title: "Chaise de Bureau Gaming",
-    description: "Chaise gaming très confortable, légèrement usée mais en bon état",
-    fullDescription:
-      "Bonjour, je vends ma chaise gaming car j'ai changé de configuration. Elle est en très bon état, très confortable avec support lombaire et appui-tête ajustable. Les accoudoirs sont également ajustables. La chaise a quelques marques d'usure superficielles mais fonctionne parfaitement. Parfait pour les longues sessions d'étude ou de gaming!",
-    images: ["/placeholder.jpg", "/placeholder.jpg", "/placeholder.jpg"],
-    publisherFirstName: "Marie",
-    publisherLastName: "Dupont",
-    publishedAt: "2024-03-10",
-  },
-  "2": {
-    id: 2,
-    title: "Livre - Analyse Mathématique",
-    description: "Manuel d'analyse mathématique S3, très utile pour les cours",
-    fullDescription:
-      "Manuel complet d'analyse mathématique pour le semestre 3. Contient de nombreux exercices corrigés et des exemples concrets. Très utilisé en classe, légèrement annoté mais les annotations sont facilement ignorables. Les pages sont en bon état. Idéal pour préparer les examens!",
-    images: ["/placeholder.jpg", "/placeholder.jpg"],
-    publisherFirstName: "Jean",
-    publisherLastName: "Martin",
-    publishedAt: "2024-03-09",
-  },
-  "3": {
-    id: 3,
-    title: "Lampe de Bureau LED",
-    description: "Lampe LED blanche, design moderne, parfait pour l'étude",
-    fullDescription:
-      "Lampe LED de qualité supérieure avec 5 niveaux de luminosité réglables. Très économe en énergie, dure très longtemps. Design épuré et moderne qui s'adapte à tout type de bureau. L'ampoule LED dure jusqu'à 50 000 heures! Pratiquement neuve, à peine utilisée.",
-    images: ["/placeholder.jpg"],
-    publisherFirstName: "Sophie",
-    publisherLastName: "Bernard",
-    publishedAt: "2024-03-08",
-  },
-  "4": {
-    id: 4,
-    title: "Clavier Mécanique",
-    description: "Clavier mécanique RGB, switches bleus, excellent état",
-    fullDescription:
-      "Clavier mécanique 87 touches avec switches bleus (tactiles et bruyants). RGB éclairage avec plusieurs modes. Excellent état général, utilisé peu. Idéal pour le gaming et la dactylographie. Livré avec câble USB et mode sans fil.",
-    images: ["/placeholder.jpg", "/placeholder.jpg"],
-    publisherFirstName: "Pierre",
-    publisherLastName: "Laurent",
-    publishedAt: "2024-03-07",
-  },
-  "5": {
-    id: 5,
-    title: "Souris Logitech MX Master 3",
-    description: "Souris ergonomique de haute qualité, comme neuve",
-    fullDescription:
-      "Souris Logitech MX Master 3 - l'une des meilleures souris du marché. Ergonomique, plusieurs boutons programmables, précision exceptionnelle. Compatible Windows et Mac. Comme neuve, très peu utilisée. Batterie dure des semaines!",
-    images: ["/placeholder.jpg"],
-    publisherFirstName: "Emma",
-    publisherLastName: "Moreau",
-    publishedAt: "2024-03-06",
-  },
-  "6": {
-    id: 6,
-    title: "Sac à Dos Universitaire",
-    description: "Grand sac à dos noir, nombreux compartiments, parfait pour les cours",
-    fullDescription:
-      "Grand sac à dos de marque renommée, capacité 30L. Plusieurs compartiments avec pochettes spécialisées pour ordinateur portable. Bretelles ergonomiques et rembourées. Très résistant et durable. Coloris noir classique. Excellent pour transporter livres et ordinateur à l'université!",
-    images: ["/placeholder.jpg", "/placeholder.jpg"],
-    publisherFirstName: "Lucas",
-    publisherLastName: "Fournier",
-    publishedAt: "2024-03-05",
-  },
-}
+import { useAuth } from "@/contexts/auth-context"
+import { annonceApi } from "@/lib/annonce-api"
 
 interface AnnouncementDetailProps {
   id: string
 }
 
 export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
-  const announcement = announcementDetails[id]
+  const { token } = useAuth()
+  const [announcement, setAnnouncement] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [showContactForm, setShowContactForm] = useState(false)
 
-  if (!announcement) {
+  useEffect(() => {
+    async function fetchAnnouncement() {
+      try {
+        setLoading(true)
+        const response = await annonceApi.getById(id, token || undefined)
+        if (response.success && response.data?.annonce) {
+          setAnnouncement(response.data.annonce)
+        } else {
+          setError("Annonce non trouvée")
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Erreur lors du chargement de l'annonce")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAnnouncement()
+  }, [id, token])
+
+  if (loading) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Annonce non trouvée</p>
+        <p className="text-muted-foreground">Chargement de l'annonce...</p>
       </div>
     )
   }
 
+  if (error || !announcement) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">{error || "Annonce non trouvée"}</p>
+      </div>
+    )
+  }
+
+  const images = announcement.images || []
+  const hasMultipleImages = images.length > 1
+  const currentImage = images[currentImageIndex] || "/placeholder.jpg"
+
   const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % announcement.images.length)
+    if (hasMultipleImages) {
+      setCurrentImageIndex((prev) => (prev + 1) % images.length)
+    }
   }
 
   const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + announcement.images.length) % announcement.images.length)
+    if (hasMultipleImages) {
+      setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length)
+    }
   }
 
   return (
@@ -121,12 +80,12 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
         <div className="lg:col-span-2 space-y-4">
           <Card className="overflow-hidden bg-muted aspect-video relative">
             <Image
-              src={announcement.images[currentImageIndex]}
+              src={currentImage}
               alt={`${announcement.title} - Photo ${currentImageIndex + 1}`}
               fill
               className="object-cover"
             />
-            {announcement.images.length > 1 && (
+            {hasMultipleImages && (
               <>
                 <button
                   onClick={prevImage}
@@ -143,16 +102,16 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
                   <ChevronRight className="size-6" />
                 </button>
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
-                  {currentImageIndex + 1} / {announcement.images.length}
+                  {currentImageIndex + 1} / {images.length}
                 </div>
               </>
             )}
           </Card>
 
           {/* Thumbnail images */}
-          {announcement.images.length > 1 && (
+          {hasMultipleImages && (
             <div className="flex gap-2">
-              {announcement.images.map((image, index) => (
+              {images.map((image: string, index: number) => (
                 <button
                   key={index}
                   onClick={() => setCurrentImageIndex(index)}
@@ -172,17 +131,24 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
           <Card className="p-6 space-y-4">
             <h1 className="text-3xl font-bold text-foreground">{announcement.title}</h1>
 
+            {announcement.type === "vente" && announcement.price && (
+              <div className="space-y-2 border-t border-border pt-4">
+                <p className="text-sm text-muted-foreground">Prix</p>
+                <p className="text-2xl font-bold text-rose-600">{announcement.price}€</p>
+              </div>
+            )}
+
             <div className="space-y-2 border-t border-border pt-4">
               <p className="text-sm text-muted-foreground">Publié par</p>
               <p className="text-lg font-semibold text-foreground">
-                {announcement.publisherFirstName} {announcement.publisherLastName}
+                {announcement.owner?.firstName || "Utilisateur"} {announcement.owner?.lastName || ""}
               </p>
             </div>
 
             <div className="space-y-2 border-t border-border pt-4">
               <p className="text-sm text-muted-foreground">Date de publication</p>
               <p className="text-foreground">
-                {new Date(announcement.publishedAt).toLocaleDateString("fr-FR", {
+                {new Date(announcement.createdAt).toLocaleDateString("fr-FR", {
                   year: "numeric",
                   month: "long",
                   day: "numeric",
@@ -203,14 +169,28 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
       {/* Full Description */}
       <Card className="p-6 space-y-4">
         <h2 className="text-2xl font-bold text-foreground">Description</h2>
-        <p className="text-foreground leading-relaxed whitespace-pre-wrap">{announcement.fullDescription}</p>
+        <p className="text-foreground leading-relaxed whitespace-pre-wrap">{announcement.description}</p>
+
+        {announcement.type === "echange" && announcement.exchangeFor && (
+          <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-sm font-semibold text-amber-900 mb-2">Ce qu'il recherche en échange:</p>
+            <p className="text-foreground">{announcement.exchangeFor}</p>
+          </div>
+        )}
+
+        {announcement.type === "pret" && announcement.borrowPeriod && (
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm font-semibold text-blue-900 mb-2">Période de prêt:</p>
+            <p className="text-foreground">{announcement.borrowPeriod}</p>
+          </div>
+        )}
       </Card>
 
       {/* Contact Form Modal */}
       {showContactForm && (
         <ContactForm
           announcementTitle={announcement.title}
-          publisherName={`${announcement.publisherFirstName} ${announcement.publisherLastName}`}
+          publisherName={`${announcement.owner?.firstName || "Utilisateur"} ${announcement.owner?.lastName || ""}`}
           onClose={() => setShowContactForm(false)}
         />
       )}

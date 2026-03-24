@@ -10,26 +10,26 @@ import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 
 export default function HomePage() {
-  const { isAuthenticated, loading } = useAuth()
-  const router = useRouter()
+    const { isAuthenticated, loading } = useAuth()
+    const router = useRouter()
 
-  useEffect(() => {
-    if (!loading && isAuthenticated) {
-      router.replace("/announcements")
-    }
-  }, [isAuthenticated, loading, router])
+    useEffect(() => {
+        if (!loading && isAuthenticated) {
+            router.replace("/announcements")
+        }
+    }, [isAuthenticated, loading, router])
 
-  if (loading) return null
+    if (loading) return null
 
-  return (
-    <div className="flex min-h-screen flex-col">
-      <Navbar />
-      <main className="flex-1">
-        <HeroSection />
-        <FeaturesSection />
-        <SecuritySection />
-      </main>
-      <Footer />
-    </div>
-  )
+    return (
+        <div className="flex min-h-screen flex-col">
+            <Navbar />
+            <main className="flex-1">
+                <HeroSection />
+                <FeaturesSection />
+                <SecuritySection />
+            </main>
+            <Footer />
+        </div>
+    )
 }

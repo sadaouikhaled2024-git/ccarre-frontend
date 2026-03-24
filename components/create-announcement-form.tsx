@@ -1,272 +1,453 @@
 "use client"
 
 import { useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { useAuth } from "@/contexts/auth-context"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Plus, X, CalendarIcon, ImagePlus } from "lucide-react"
-import { format } from "date-fns"
-import { fr } from "date-fns/locale"
-import { cn } from "@/lib/utils"
+import { Textarea } from "@/components/ui/textarea"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { X, Upload, AlertCircle, CheckCircle2, Plus } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { annonceApi } from "@/lib/annonce-api"
 
-type OfferType = "vente" | "pret" | "echange"
+const ANNOUNCEMENT_TYPES = [
+  { value: "vente", label: "Vente" },
+  { value: "echange", label: "Échange" },
+  { value: "pret", label: "Prêt" },
+  { value: "demandePret", label: "Demande de Prêt" },
+]
 
-export function CreateAnnouncementButton() {
-  const [open, setOpen] = useState(false)
-  const [offerType, setOfferType] = useState<OfferType>("vente")
-  const [title, setTitle] = useState("")
-  const [description, setDescription] = useState("")
-  const [price, setPrice] = useState("")
-  const [exchangeFor, setExchangeFor] = useState("")
-  const [startDate, setStartDate] = useState<Date>()
-  const [endDate, setEndDate] = useState<Date>()
-  const [images, setImages] = useState<string[]>([])
+const CATEGORIES = [
+  "Livres",
+  "Électronique",
+  "Mobilier",
+  "Accessoires",
+  "Vêtements",
+  "Sports",
+  "Outils",
+  "Autre",
+]
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (files) {
-      const newImages: string[] = []
-      Array.from(files).forEach((file) => {
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          newImages.push(reader.result as string)
-          if (newImages.length === files.length) {
-            setImages((prev) => [...prev, ...newImages])
-          }
-        }
-        reader.readAsDataURL(file)
-      })
+function CreateAnnouncementFormContent() {
+  const { token } = useAuth()
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState(false)
+
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    type: "vente",
+    category: "Livres",
+    price: "",
+    exchangeFor: "",
+    borrowPeriod: "",
+  })
+
+  const [mainImage, setMainImage] = useState<File | null>(null)
+  const [mainImagePreview, setMainImagePreview] = useState("")
+  const [additionalImages, setAdditionalImages] = useState<File[]>([])
+  const [additionalPreviews, setAdditionalPreviews] = useState<string[]>([])
+  const [exchangeImage, setExchangeImage] = useState<File | null>(null)
+  const [exchangeImagePreview, setExchangeImagePreview] = useState("")
+
+  const handleMainImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setMainImage(file)
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        setMainImagePreview(event.target?.result as string)
+      }
+      reader.readAsDataURL(file)
     }
   }
 
-  const removeImage = (index: number) => {
-    setImages((prev) => prev.filter((_, i) => i !== index))
+  const handleAdditionalImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    setAdditionalImages([...additionalImages, ...files])
+
+    files.forEach((file) => {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        setAdditionalPreviews((prev) => [...prev, event.target?.result as string])
+      }
+      reader.readAsDataURL(file)
+    })
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleExchangeImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setExchangeImage(file)
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        setExchangeImagePreview(event.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const removeAdditionalImage = (index: number) => {
+    setAdditionalImages((prev) => prev.filter((_, i) => i !== index))
+    setAdditionalPreviews((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Mock submission - will be connected to server later
-    console.log({
-      title,
-      description,
-      offerType,
-      price: offerType === "vente" ? price : undefined,
-      exchangeFor: offerType === "echange" ? exchangeFor : undefined,
-      startDate: offerType === "pret" ? startDate : undefined,
-      endDate: offerType === "pret" ? endDate : undefined,
-      images,
-    })
-    setOpen(false)
-    // Reset form
-    setTitle("")
-    setDescription("")
-    setPrice("")
-    setExchangeFor("")
-    setStartDate(undefined)
-    setEndDate(undefined)
-    setImages([])
-    setOfferType("vente")
+    setError("")
+    setSuccess(false)
+    setLoading(true)
+
+    try {
+      if (!formData.title.trim()) throw new Error("Le titre est obligatoire")
+      if (!formData.description.trim()) throw new Error("La description est obligatoire")
+      if (!mainImage) throw new Error("L'image principale est obligatoire")
+
+      if (formData.type === "vente") {
+        if (!formData.price || parseFloat(formData.price) <= 0) {
+          throw new Error("Un prix valide (> 0) est requis pour une annonce de vente")
+        }
+      }
+
+      if (formData.type === "echange") {
+        if (!formData.exchangeFor.trim()) {
+          throw new Error("Veuillez décrire ce que vous recherchez en échange")
+        }
+        if (formData.exchangeFor.trim().length < 5) {
+          throw new Error("La description d'échange doit faire au moins 5 caractères")
+        }
+      }
+
+      if (formData.type === "pret") {
+        if (!formData.borrowPeriod.trim()) {
+          throw new Error('Veuillez spécifier la période de prêt')
+        }
+        if (formData.borrowPeriod.trim().length < 3) {
+          throw new Error("La période doit faire au moins 3 caractères")
+        }
+      }
+
+      const uploadFormData = new FormData()
+      uploadFormData.append("title", formData.title)
+      uploadFormData.append("description", formData.description)
+      uploadFormData.append("type", formData.type)
+      uploadFormData.append("category", formData.category.toLowerCase())
+
+      if (formData.type === "vente") {
+        uploadFormData.append("price", formData.price)
+      }
+
+      if (formData.type === "echange") {
+        uploadFormData.append("exchangeFor", formData.exchangeFor)
+        if (exchangeImage) {
+          uploadFormData.append("exchangeImage", exchangeImage)
+        }
+      }
+
+      if (formData.type === "pret") {
+        uploadFormData.append("borrowPeriod", formData.borrowPeriod)
+      }
+
+      uploadFormData.append("images", mainImage)
+      additionalImages.forEach((img) => {
+        uploadFormData.append("images", img)
+      })
+
+      const response = await annonceApi.create(uploadFormData, token || undefined)
+
+      if (response.success) {
+        setSuccess(true)
+        setTimeout(() => {
+          router.push(`/announcements/${response.data?.annonce._id}`)
+        }, 1500)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Une erreur est survenue")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <button
-          className="fixed bottom-6 left-6 z-50 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-all hover:bg-primary/90 hover:scale-110 hover:shadow-xl"
-          aria-label="Créer une annonce"
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {success && (
+        <Alert className="bg-green-50 border-green-200">
+          <CheckCircle2 className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-800">
+            Annonce créée avec succès! Redirection en cours...
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Type d'annonce */}
+      <div className="space-y-2">
+        <Label>Type d'annonce</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {ANNOUNCEMENT_TYPES.map((type) => (
+            <button
+              key={type.value}
+              type="button"
+              onClick={() => setFormData({ ...formData, type: type.value as any })}
+              className={`p-2 rounded border-2 transition-all text-sm font-medium ${
+                formData.type === type.value
+                  ? "border-rose-500 bg-rose-50"
+                  : "border-gray-200 hover:border-rose-300"
+              }`}
+            >
+              {type.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Titre */}
+      <div className="space-y-2">
+        <Label htmlFor="title">Titre *</Label>
+        <Input
+          id="title"
+          value={formData.title}
+          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+          placeholder="Ex: iPhone 12 - Excellent État"
+          disabled={loading}
+        />
+      </div>
+
+      {/* Description */}
+      <div className="space-y-2">
+        <Label htmlFor="description">Description *</Label>
+        <Textarea
+          id="description"
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          placeholder="Décrivez votre article..."
+          rows={3}
+          disabled={loading}
+        />
+      </div>
+
+      {/* Catégorie */}
+      <div className="space-y-2">
+        <Label htmlFor="category">Catégorie</Label>
+        <select
+          id="category"
+          value={formData.category}
+          onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+          className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm"
+          disabled={loading}
         >
-          <Plus className="size-7" />
+          {CATEGORIES.map((cat) => (
+            <option key={cat} value={cat}>
+              {cat}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Prix (si vente) */}
+      {formData.type === "vente" && (
+        <div className="space-y-2">
+          <Label htmlFor="price">Prix (€) *</Label>
+          <Input
+            id="price"
+            type="number"
+            value={formData.price}
+            onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+            placeholder="0.00"
+            step="0.01"
+            min="0"
+            disabled={loading}
+          />
+        </div>
+      )}
+
+      {/* Échange (si échange) */}
+      {formData.type === "echange" && (
+        <div className="space-y-2">
+          <Label htmlFor="exchangeFor">Ce que vous recherchez en échange *</Label>
+          <Textarea
+            id="exchangeFor"
+            value={formData.exchangeFor}
+            onChange={(e) => setFormData({ ...formData, exchangeFor: e.target.value })}
+            placeholder="Décrivez ce que vous cherchez..."
+            rows={2}
+            disabled={loading}
+          />
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 text-center">
+            <input
+              id="exchangeImage"
+              type="file"
+              accept="image/*"
+              onChange={handleExchangeImageChange}
+              className="hidden"
+              disabled={loading}
+            />
+            <label htmlFor="exchangeImage" className="cursor-pointer block">
+              <Upload className="h-4 w-4 mx-auto mb-1 text-gray-400" />
+              <p className="text-xs text-gray-500">Photo (optionnel)</p>
+            </label>
+          </div>
+          {exchangeImagePreview && (
+            <div className="relative w-24 h-24">
+              <img
+                src={exchangeImagePreview}
+                alt="Exchange"
+                className="w-full h-full object-cover rounded border-2 border-rose-200"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setExchangeImage(null)
+                  setExchangeImagePreview("")
+                }}
+                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Période de prêt (si prêt) */}
+      {formData.type === "pret" && (
+        <div className="space-y-2">
+          <Label htmlFor="borrowPeriod">Période de prêt *</Label>
+          <Input
+            id="borrowPeriod"
+            value={formData.borrowPeriod}
+            onChange={(e) => setFormData({ ...formData, borrowPeriod: e.target.value })}
+            placeholder="Ex: 2 semaines, 1 mois"
+            disabled={loading}
+          />
+        </div>
+      )}
+
+      {/* Images */}
+      <div className="space-y-3">
+        <Label>Images *</Label>
+
+        {/* Image principale */}
+        <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+          <input
+            id="mainImage"
+            type="file"
+            accept="image/*"
+            onChange={handleMainImageChange}
+            className="hidden"
+            disabled={loading}
+          />
+          <label htmlFor="mainImage" className="cursor-pointer block">
+            <Upload className="h-5 w-5 mx-auto mb-2 text-gray-400" />
+            <p className="text-sm text-gray-500">Image principale</p>
+          </label>
+        </div>
+        {mainImagePreview && (
+          <div className="relative w-32 h-32 border-2 border-rose-500 rounded-lg overflow-hidden">
+            <img
+              src={mainImagePreview}
+              alt="Main"
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
+
+        {/* Images supplémentaires */}
+        <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+          <input
+            id="additionalImages"
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleAdditionalImagesChange}
+            className="hidden"
+            disabled={loading}
+          />
+          <label htmlFor="additionalImages" className="cursor-pointer block">
+            <Upload className="h-5 w-5 mx-auto mb-2 text-gray-400" />
+            <p className="text-sm text-gray-500">Images supplémentaires (optionnel)</p>
+          </label>
+        </div>
+        {additionalPreviews.length > 0 && (
+          <div className="grid grid-cols-3 gap-2">
+            {additionalPreviews.map((preview, index) => (
+              <div key={index} className="relative w-full aspect-square">
+                <img
+                  src={preview}
+                  alt={`Additional ${index}`}
+                  className="w-full h-full object-cover rounded border border-gray-200"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeAdditionalImage(index)}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Boutons */}
+      <div className="flex gap-3 pt-4">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => router.back()}
+          className="flex-1"
+          disabled={loading}
+        >
+          Annuler
+        </Button>
+        <Button
+          type="submit"
+          className="flex-1 bg-rose-500 hover:bg-rose-600 text-white"
+          disabled={loading}
+        >
+          {loading ? "Création..." : "Créer"}
+        </Button>
+      </div>
+    </form>
+  )
+}
+
+export function CreateAnnouncementButton() {
+  const { user, token } = useAuth()
+
+  if (!user || !token) {
+    return null
+  }
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button className="fixed bottom-6 left-6 bg-rose-500 hover:bg-rose-600 text-white rounded-full p-4 shadow-lg transition-all hover:shadow-xl">
+          <Plus className="h-6 w-6" />
         </button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-foreground">Créer une annonce</DialogTitle>
+          <DialogTitle>Créer une annonce</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-6 pt-4">
-          {/* Title */}
-          <div className="space-y-2">
-            <Label htmlFor="title" className="text-sm font-medium text-foreground">Titre</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ex: Livre de mathématiques L2"
-              required
-              className="border-input"
-            />
-          </div>
-
-          {/* Description */}
-          <div className="space-y-2">
-            <Label htmlFor="description" className="text-sm font-medium text-foreground">Description</Label>
-            <Textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Décrivez votre article en détail..."
-              rows={4}
-              required
-              className="border-input resize-none"
-            />
-          </div>
-
-          {/* Images */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-foreground">Images</Label>
-            <div className="flex flex-wrap gap-3">
-              {images.map((image, index) => (
-                <div key={index} className="group relative size-20 overflow-hidden rounded-lg border border-border">
-                  <img src={image} alt={`Image ${index + 1}`} className="size-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => removeImage(index)}
-                    className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground opacity-0 transition-opacity group-hover:opacity-100"
-                  >
-                    <X className="size-3" />
-                  </button>
-                </div>
-              ))}
-              <label className="flex size-20 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border transition-colors hover:border-primary hover:bg-muted/50">
-                <ImagePlus className="size-6 text-muted-foreground" />
-                <span className="mt-1 text-xs text-muted-foreground">Ajouter</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-              </label>
-            </div>
-          </div>
-
-          {/* Offer Type */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium text-foreground">{"Type d'offre"}</Label>
-            <RadioGroup
-              value={offerType}
-              onValueChange={(value) => setOfferType(value as OfferType)}
-              className="flex flex-wrap gap-4"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="vente" id="vente" className="border-primary text-primary" />
-                <Label htmlFor="vente" className="cursor-pointer text-sm text-foreground">Vente</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="pret" id="pret" className="border-primary text-primary" />
-                <Label htmlFor="pret" className="cursor-pointer text-sm text-foreground">Prêt</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="echange" id="echange" className="border-primary text-primary" />
-                <Label htmlFor="echange" className="cursor-pointer text-sm text-foreground">Échange</Label>
-              </div>
-            </RadioGroup>
-          </div>
-
-          {/* Conditional Fields based on Offer Type */}
-          {offerType === "vente" && (
-            <div className="space-y-2">
-              <Label htmlFor="price" className="text-sm font-medium text-foreground">Prix (EUR)</Label>
-              <Input
-                id="price"
-                type="number"
-                min="0"
-                step="0.01"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="Ex: 25.00"
-                required
-                className="border-input"
-              />
-            </div>
-          )}
-
-          {offerType === "echange" && (
-            <div className="space-y-2">
-              <Label htmlFor="exchangeFor" className="text-sm font-medium text-foreground">Échange contre</Label>
-              <Textarea
-                id="exchangeFor"
-                value={exchangeFor}
-                onChange={(e) => setExchangeFor(e.target.value)}
-                placeholder="Décrivez ce que vous recherchez en échange..."
-                rows={3}
-                required
-                className="border-input resize-none"
-              />
-            </div>
-          )}
-
-          {offerType === "pret" && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-foreground">Date de début</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !startDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 size-4" />
-                      {startDate ? format(startDate, "PPP", { locale: fr }) : "Sélectionner"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={startDate}
-                      onSelect={setStartDate}
-                      initialFocus
-                      locale={fr}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-foreground">Date de fin</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !endDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 size-4" />
-                      {endDate ? format(endDate, "PPP", { locale: fr }) : "Sélectionner"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={endDate}
-                      onSelect={setEndDate}
-                      initialFocus
-                      locale={fr}
-                      disabled={(date) => startDate ? date < startDate : false}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-          )}
-
-          {/* Submit Button */}
-          <Button
-            type="submit"
-            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            Publier l'annonce
-          </Button>
-        </form>
+        <CreateAnnouncementFormContent />
       </DialogContent>
     </Dialog>
   )
