@@ -5,7 +5,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Search, Send, MoreVertical, Phone, Video, ArrowLeft, ImageIcon, Paperclip } from "lucide-react"
+import { Search, Send, MoreVertical, ArrowLeft, ImageIcon, Paperclip, User, Trash2, Flag, Ban } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import Link from "next/link"
 import { cn } from "@/lib/utils"
 
 interface Message {
@@ -270,17 +278,34 @@ export function MessagingPageContent() {
                       {selectedConversation.participant.isOnline ? "En ligne" : "Hors ligne"}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-                      <Phone className="size-5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-                      <Video className="size-5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-                      <MoreVertical className="size-5" />
-                    </Button>
-                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+                        <MoreVertical className="size-5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem asChild>
+                        <Link href={`/user/${selectedConversation.participant.id}`} className="cursor-pointer">
+                          <User className="size-4 mr-2" />
+                          <span>Voir le profil</span>
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="cursor-pointer text-muted-foreground">
+                        <Trash2 className="size-4 mr-2" />
+                        <span>Supprimer la conversation</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="cursor-pointer text-orange-600">
+                        <Flag className="size-4 mr-2" />
+                        <span>Signaler</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="cursor-pointer text-red-600">
+                        <Ban className="size-4 mr-2" />
+                        <span>Bloquer</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
 
                 {/* Messages */}
