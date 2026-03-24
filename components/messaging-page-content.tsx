@@ -327,7 +327,7 @@ export function MessagingPageContent() {
                 </div>
 
                 {/* Messages */}
-                <ScrollArea className="flex-1">
+                <div className="flex-1 overflow-y-auto">
                   <div className="p-4 space-y-4">
                     {selectedConversation.messages.map((message) => {
                       const isMe = message.senderId === "me"
@@ -365,7 +365,7 @@ export function MessagingPageContent() {
                     })}
                     <div ref={messagesEndRef} />
                   </div>
-                </ScrollArea>
+                </div>
 
                 {/* Message Input */}
                 <div className="p-4 border-t border-border bg-card">
