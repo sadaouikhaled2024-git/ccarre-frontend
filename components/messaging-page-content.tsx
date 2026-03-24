@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -51,6 +51,16 @@ const mockConversations: Conversation[] = [
     lastMessageTime: new Date(Date.now() - 1000 * 60 * 5),
     unreadCount: 2,
     messages: [
+      { id: "m0a", content: "Salut ! J'ai vu ton annonce sur CCarré", senderId: "u1", timestamp: new Date(Date.now() - 1000 * 60 * 120), isRead: true },
+      { id: "m0b", content: "Ah super ! De quelle annonce tu parles ?", senderId: "me", timestamp: new Date(Date.now() - 1000 * 60 * 115), isRead: true },
+      { id: "m0c", content: "Le livre de maths pour le cours d'analyse", senderId: "u1", timestamp: new Date(Date.now() - 1000 * 60 * 110), isRead: true },
+      { id: "m0d", content: "Il est en bon état ?", senderId: "u1", timestamp: new Date(Date.now() - 1000 * 60 * 105), isRead: true },
+      { id: "m0e", content: "Oui très bon état, je l'ai utilisé qu'un semestre", senderId: "me", timestamp: new Date(Date.now() - 1000 * 60 * 100), isRead: true },
+      { id: "m0f", content: "Tu le vends combien ?", senderId: "u1", timestamp: new Date(Date.now() - 1000 * 60 * 95), isRead: true },
+      { id: "m0g", content: "25 euros, c'est négociable si tu veux", senderId: "me", timestamp: new Date(Date.now() - 1000 * 60 * 90), isRead: true },
+      { id: "m0h", content: "20 euros ça t'irait ?", senderId: "u1", timestamp: new Date(Date.now() - 1000 * 60 * 85), isRead: true },
+      { id: "m0i", content: "Ok ça marche pour moi !", senderId: "me", timestamp: new Date(Date.now() - 1000 * 60 * 80), isRead: true },
+      { id: "m0j", content: "Parfait merci beaucoup !", senderId: "u1", timestamp: new Date(Date.now() - 1000 * 60 * 75), isRead: true },
       { id: "m1", content: "Bonjour ! Je suis intéressée par votre livre de mathématiques", senderId: "u1", timestamp: new Date(Date.now() - 1000 * 60 * 30), isRead: true },
       { id: "m2", content: "Bonjour Marie ! Oui, il est toujours disponible", senderId: "me", timestamp: new Date(Date.now() - 1000 * 60 * 25), isRead: true },
       { id: "m3", content: "Est-ce qu'on peut se voir demain à la fac ?", senderId: "u1", timestamp: new Date(Date.now() - 1000 * 60 * 20), isRead: true },
@@ -141,6 +151,14 @@ export function MessagingPageContent() {
   const [searchQuery, setSearchQuery] = useState("")
   const [newMessage, setNewMessage] = useState("")
   const [showMobileChat, setShowMobileChat] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to bottom when conversation changes or new message
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
+    }
+  }, [selectedConversation])
 
   const filteredConversations = conversations.filter((conv) =>
     conv.participant.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -309,8 +327,8 @@ export function MessagingPageContent() {
                 </div>
 
                 {/* Messages */}
-                <ScrollArea className="flex-1 p-4">
-                  <div className="space-y-4">
+                <ScrollArea className="flex-1">
+                  <div className="p-4 space-y-4">
                     {selectedConversation.messages.map((message) => {
                       const isMe = message.senderId === "me"
                       return (
@@ -345,6 +363,7 @@ export function MessagingPageContent() {
                         </div>
                       )
                     })}
+                    <div ref={messagesEndRef} />
                   </div>
                 </ScrollArea>
 
