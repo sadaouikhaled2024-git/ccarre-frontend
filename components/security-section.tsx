@@ -41,7 +41,7 @@ export function SecuritySection() {
               </div>
               <div>
                 <h3 className="font-semibold text-foreground">
-                  {"Aucun paiement intégré"}
+                  {"Aucun paiement intégré "}
                 </h3>
                 <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                   {"CCarré ne gère aucune transaction financière. Les échanges se font directement entre étudiants, en toute liberté."}
