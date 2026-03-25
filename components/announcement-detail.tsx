@@ -2,9 +2,8 @@
 
 import Image from "next/image"
 import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { useState, useEffect } from "react"
-import { ContactForm } from "@/components/contact-form"
+import { InterestedModal } from "@/components/interested-modal"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { annonceApi } from "@/lib/annonce-api"
@@ -19,7 +18,6 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const [showContactForm, setShowContactForm] = useState(false)
 
   useEffect(() => {
     async function fetchAnnouncement() {
@@ -156,12 +154,12 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
               </p>
             </div>
 
-            <Button
-              onClick={() => setShowContactForm(true)}
-              className="w-full bg-primary text-primary-foreground hover:bg-accent transition-colors mt-4"
-            >
-              Contacter le propriétaire
-            </Button>
+            <InterestedModal
+              announcementId={announcement._id}
+              announcementTitle={announcement.title}
+              announcementType={announcement.type}
+              ownerName={`${announcement.owner?.firstName || "Utilisateur"} ${announcement.owner?.lastName || ""}`}
+            />
           </Card>
         </div>
       </div>
@@ -185,15 +183,6 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
           </div>
         )}
       </Card>
-
-      {/* Contact Form Modal */}
-      {showContactForm && (
-        <ContactForm
-          announcementTitle={announcement.title}
-          publisherName={`${announcement.owner?.firstName || "Utilisateur"} ${announcement.owner?.lastName || ""}`}
-          onClose={() => setShowContactForm(false)}
-        />
-      )}
     </div>
   )
 }

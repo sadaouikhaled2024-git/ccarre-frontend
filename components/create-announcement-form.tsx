@@ -163,7 +163,11 @@ function CreateAnnouncementFormContent() {
         uploadFormData.append("images", img)
       })
 
-      const response = await annonceApi.create(uploadFormData, token || undefined)
+      if (!token) {
+        throw new Error("Authentication token required")
+      }
+
+      const response = await annonceApi.create(uploadFormData, token)
 
       if (response.success) {
         setSuccess(true)

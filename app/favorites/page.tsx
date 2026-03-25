@@ -41,7 +41,7 @@ export default function FavoritesPage() {
             <Heart className="size-8 text-rose-500 fill-rose-500" />
             <h1 className="text-balance text-4xl font-bold text-foreground">Mes Favoris</h1>
           </div>
-
+          
           <div className="space-y-4">
             {mockFavorites.length > 0 ? (
               mockFavorites.map((item) => (
