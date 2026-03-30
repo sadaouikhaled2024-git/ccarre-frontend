@@ -4,33 +4,45 @@ import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import Link from "next/link"
 import { Heart } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
+import { useEffect, useState } from "react"
+import { favoriteApi } from "@/lib/favorite-api"
+import type { Annonce } from "@/lib/annonce-api"
+import { useRouter } from "next/navigation"
 
 export default function FavoritesPage() {
-  // Mock favorites data - not fetched for now
-  const mockFavorites = [
-    {
-      _id: "1",
-      title: "MacBook Pro 2023",
-      category: "électronique",
-      price: 1200,
-      image: "/placeholder.jpg",
-      owner: {
-        firstName: "Jean",
-        lastName: "Dupont",
-      },
-    },
-    {
-      _id: "2",
-      title: "Livres Python Avancé",
-      category: "livres",
-      price: 45,
-      image: "/placeholder.jpg",
-      owner: {
-        firstName: "Marie",
-        lastName: "Martin",
-      },
-    },
-  ]
+  const { isAuthenticated, loading, token } = useAuth()
+  const router = useRouter()
+  const [favorites, setFavorites] = useState<Annonce[]>([])
+  const [isLoadingData, setIsLoadingData] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      router.replace("/auth")
+    }
+  }, [isAuthenticated, loading, router])
+
+  useEffect(() => {
+    if (!token) return
+
+    const fetchFavorites = async () => {
+      try {
+        setIsLoadingData(true)
+        setError(null)
+        const response = await favoriteApi.getAll(token)
+        setFavorites((response.data as Annonce[]) || [])
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Impossible de charger vos favoris")
+      } finally {
+        setIsLoadingData(false)
+      }
+    }
+
+    fetchFavorites()
+  }, [token])
+
+  if (loading || !isAuthenticated) return null
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -42,21 +54,27 @@ export default function FavoritesPage() {
             <h1 className="text-balance text-4xl font-bold text-foreground">Mes Favoris</h1>
           </div>
           
+          {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+
           <div className="space-y-4">
-            {mockFavorites.length > 0 ? (
-              mockFavorites.map((item) => (
+            {isLoadingData ? (
+              <p className="text-muted-foreground">Chargement de vos favoris...</p>
+            ) : favorites.length > 0 ? (
+              favorites.map((item) => (
                 <Link key={item._id} href={`/announcements/${item._id}`}>
                   <div className="flex gap-4 rounded-lg border border-border p-4 hover:shadow-lg transition-shadow cursor-pointer">
-                    <div className="h-24 w-24 flex-shrink-0 rounded-lg bg-muted" />
+                    <div className="h-24 w-24 shrink-0 rounded-lg bg-muted" />
                     <div className="flex-1">
                       <h3 className="font-bold text-lg text-foreground">{item.title}</h3>
                       <p className="text-sm text-muted-foreground">{item.category}</p>
-                      <p className="mt-2 text-lg font-bold text-primary">{item.price}€</p>
+                      {item.price && (
+                        <p className="mt-2 text-lg font-bold text-primary">{item.price}€</p>
+                      )}
                     </div>
                     <div className="flex items-center justify-end">
                       <div className="text-right">
                         <p className="text-sm font-semibold text-foreground">
-                          {item.owner.firstName} {item.owner.lastName}
+                          {item.owner?.firstName} {item.owner?.lastName}
                         </p>
                       </div>
                     </div>

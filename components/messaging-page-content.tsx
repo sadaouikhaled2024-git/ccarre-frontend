@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,10 @@ import {
 import Link from "next/link"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/contexts/auth-context"
+import { echangeApi, type Echange } from "@/lib/echange-api"
+import { messageApi, type Message as ApiMessage } from "@/lib/message-api"
+import { io, type Socket } from "socket.io-client"
 
 interface Message {
   id: string
@@ -23,6 +27,8 @@ interface Message {
   senderId: string
   timestamp: Date
   isRead: boolean
+  isImage?: boolean
+  status?: "uploading" | "sent" | "error"
 }
 
 interface Conversation {
@@ -33,96 +39,14 @@ interface Conversation {
     avatar?: string
     isOnline: boolean
   }
-  lastMessage: string
-  lastMessageTime: Date
+  lastMessage?: string
+  lastMessageTime?: Date
   unreadCount: number
-  messages: Message[]
+  annonceTitle?: string
 }
 
-const mockConversations: Conversation[] = [
-  {
-    id: "1",
-    participant: {
-      id: "u1",
-      name: "Marie Dupont",
-      avatar: "",
-      isOnline: true,
-    },
-    lastMessage: "Super, on se retrouve demain alors !",
-    lastMessageTime: new Date(Date.now() - 1000 * 60 * 5),
-    unreadCount: 2,
-    messages: [
-      { id: "m0a", content: "Salut ! J'ai vu ton annonce sur CCarré", senderId: "u1", timestamp: new Date(Date.now() - 1000 * 60 * 120), isRead: true },
-      { id: "m0b", content: "Ah super ! De quelle annonce tu parles ?", senderId: "me", timestamp: new Date(Date.now() - 1000 * 60 * 115), isRead: true },
-      { id: "m0c", content: "Le livre de maths pour le cours d'analyse", senderId: "u1", timestamp: new Date(Date.now() - 1000 * 60 * 110), isRead: true },
-      { id: "m0d", content: "Il est en bon état ?", senderId: "u1", timestamp: new Date(Date.now() - 1000 * 60 * 105), isRead: true },
-      { id: "m0e", content: "Oui très bon état, je l'ai utilisé qu'un semestre", senderId: "me", timestamp: new Date(Date.now() - 1000 * 60 * 100), isRead: true },
-      { id: "m0f", content: "Tu le vends combien ?", senderId: "u1", timestamp: new Date(Date.now() - 1000 * 60 * 95), isRead: true },
-      { id: "m0g", content: "25 euros, c'est négociable si tu veux", senderId: "me", timestamp: new Date(Date.now() - 1000 * 60 * 90), isRead: true },
-      { id: "m0h", content: "20 euros ça t'irait ?", senderId: "u1", timestamp: new Date(Date.now() - 1000 * 60 * 85), isRead: true },
-      { id: "m0i", content: "Ok ça marche pour moi !", senderId: "me", timestamp: new Date(Date.now() - 1000 * 60 * 80), isRead: true },
-      { id: "m0j", content: "Parfait merci beaucoup !", senderId: "u1", timestamp: new Date(Date.now() - 1000 * 60 * 75), isRead: true },
-      { id: "m1", content: "Bonjour ! Je suis intéressée par votre livre de mathématiques", senderId: "u1", timestamp: new Date(Date.now() - 1000 * 60 * 30), isRead: true },
-      { id: "m2", content: "Bonjour Marie ! Oui, il est toujours disponible", senderId: "me", timestamp: new Date(Date.now() - 1000 * 60 * 25), isRead: true },
-      { id: "m3", content: "Est-ce qu'on peut se voir demain à la fac ?", senderId: "u1", timestamp: new Date(Date.now() - 1000 * 60 * 20), isRead: true },
-      { id: "m4", content: "Oui, vers 14h devant la bibliothèque ?", senderId: "me", timestamp: new Date(Date.now() - 1000 * 60 * 15), isRead: true },
-      { id: "m5", content: "Super, on se retrouve demain alors !", senderId: "u1", timestamp: new Date(Date.now() - 1000 * 60 * 5), isRead: false },
-    ],
-  },
-  {
-    id: "2",
-    participant: {
-      id: "u2",
-      name: "Lucas Martin",
-      avatar: "",
-      isOnline: false,
-    },
-    lastMessage: "Merci pour le vélo !",
-    lastMessageTime: new Date(Date.now() - 1000 * 60 * 60 * 2),
-    unreadCount: 0,
-    messages: [
-      { id: "m6", content: "Le vélo est en bon état ?", senderId: "u2", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 3), isRead: true },
-      { id: "m7", content: "Oui, je l'ai fait réviser le mois dernier", senderId: "me", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2.5), isRead: true },
-      { id: "m8", content: "Merci pour le vélo !", senderId: "u2", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), isRead: true },
-    ],
-  },
-  {
-    id: "3",
-    participant: {
-      id: "u3",
-      name: "Sophie Bernard",
-      avatar: "",
-      isOnline: true,
-    },
-    lastMessage: "D'accord, je regarde ça",
-    lastMessageTime: new Date(Date.now() - 1000 * 60 * 60 * 24),
-    unreadCount: 0,
-    messages: [
-      { id: "m9", content: "Salut ! Tu vends toujours ton bureau ?", senderId: "u3", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 25), isRead: true },
-      { id: "m10", content: "Oui ! Tu veux des photos ?", senderId: "me", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24.5), isRead: true },
-      { id: "m11", content: "D'accord, je regarde ça", senderId: "u3", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24), isRead: true },
-    ],
-  },
-  {
-    id: "4",
-    participant: {
-      id: "u4",
-      name: "Thomas Petit",
-      avatar: "",
-      isOnline: false,
-    },
-    lastMessage: "Je te confirme demain",
-    lastMessageTime: new Date(Date.now() - 1000 * 60 * 60 * 48),
-    unreadCount: 1,
-    messages: [
-      { id: "m12", content: "Combien pour la lampe de bureau ?", senderId: "u4", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 50), isRead: true },
-      { id: "m13", content: "15 euros, c'est négociable", senderId: "me", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 49), isRead: true },
-      { id: "m14", content: "Je te confirme demain", senderId: "u4", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48), isRead: false },
-    ],
-  },
-]
-
-function formatTime(date: Date): string {
+function formatTime(date?: Date): string {
+  if (!date) return ""
   const now = new Date()
   const diff = now.getTime() - date.getTime()
   const days = Math.floor(diff / (1000 * 60 * 60 * 24))
@@ -147,8 +71,13 @@ function getInitials(name: string): string {
 }
 
 export function MessagingPageContent() {
-  const [conversations] = useState<Conversation[]>(mockConversations)
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
+  const { token, user } = useAuth()
+  const [echanges, setEchanges] = useState<Echange[]>([])
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null)
+  const [messagesByEchange, setMessagesByEchange] = useState<Record<string, Message[]>>({})
+  const [loadingEchanges, setLoadingEchanges] = useState(true)
+  const [loadingMessages, setLoadingMessages] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [newMessage, setNewMessage] = useState("")
   const [showMobileChat, setShowMobileChat] = useState(false)
@@ -157,12 +86,166 @@ export function MessagingPageContent() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const socketRef = useRef<Socket | null>(null)
+
+  const isImageContent = useCallback((content: string) => {
+    return content.startsWith("data:image") || /\.(png|jpe?g|gif|webp|avif)$/i.test(content)
+  }, [])
+
+  const mapApiMessage = useCallback((message: ApiMessage): Message => ({
+    id: message._id,
+    content: message.contenu,
+    senderId: (message.expediteur as any)?._id ?? "",
+    timestamp: new Date(message.createdAt),
+    isRead: true,
+    isImage: isImageContent(message.contenu),
+    status: "sent",
+  }), [isImageContent])
+
+  const addMessageToEchange = useCallback((echangeId: string, message: Message) => {
+    setMessagesByEchange((prev) => {
+      const existing = prev[echangeId] ?? []
+      return { ...prev, [echangeId]: [...existing, message] }
+    })
+  }, [])
+
+  const updateMessageInEchange = useCallback((echangeId: string, messageId: string, updates: Partial<Message>) => {
+    setMessagesByEchange((prev) => {
+      const existing = prev[echangeId] ?? []
+      return {
+        ...prev,
+        [echangeId]: existing.map((msg) => (msg.id === messageId ? { ...msg, ...updates } : msg)),
+      }
+    })
+  }, [])
+
+  const getCounterpart = useCallback(
+    (echange: Echange) => {
+      const demandeur = echange.utilisateurDemandeur as any
+      const proprietaire = echange.utilisateurProprietaire as any
+      if (demandeur?._id === user?._id) return proprietaire
+      return demandeur
+    },
+    [user?._id],
+  )
+
+  const conversations = useMemo<Conversation[]>(() => {
+    return echanges.map((echange) => {
+      const counterpart = getCounterpart(echange)
+      const lastMessage = messagesByEchange[echange._id]?.[messagesByEchange[echange._id].length - 1]
+
+      const lastMessageText = lastMessage
+        ? lastMessage.isImage
+          ? lastMessage.senderId === user?._id
+            ? "you sent an image"
+            : "sent image"
+          : lastMessage.content
+        : echange.messageInitial || "Nouvel échange"
+
+      return {
+        id: echange._id,
+        participant: {
+          id: counterpart?._id ?? "",
+          name: `${counterpart?.firstName ?? ""} ${counterpart?.lastName ?? ""}`.trim() || "Utilisateur",
+          avatar: counterpart?.profileImage,
+          isOnline: false,
+        },
+        lastMessage: lastMessageText,
+        lastMessageTime: lastMessage?.timestamp || new Date(echange.updatedAt),
+        unreadCount: 0,
+        annonceTitle: (echange.annonce as any)?.title,
+      }
+    })
+  }, [echanges, getCounterpart, messagesByEchange, user?._id])
   
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [selectedConversation])
+  }, [selectedConversationId, messagesByEchange])
+
+  // Socket.io connection
+  useEffect(() => {
+    if (!token) return
+
+    const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000", {
+      transports: ["websocket"],
+      auth: { token },
+    })
+
+    socketRef.current = socket
+
+    socket.on("connect_error", (err) => {
+      setError(err.message || "Connexion temps réel échouée")
+    })
+
+    socket.on("receive_message", (payload: any) => {
+      const echangeId = payload.echangeId as string
+
+      // Skip duplicates and avoid re-adding our own optimistic send
+      setMessagesByEchange((prev) => {
+        const existing = prev[echangeId] ?? []
+        const senderId = (payload.expediteur as any)?._id ?? ""
+
+        if (existing.some((m) => m.id === payload._id)) {
+          return prev
+        }
+
+        // If we have a pending uploading image from this sender, replace it instead of duplicating
+        const pendingIndex = existing.findIndex((m) => m.isImage && m.status === "uploading" && m.senderId === senderId)
+
+        const mapped = mapApiMessage({
+          _id: payload._id,
+          echangeId,
+          expediteur: payload.expediteur,
+          contenu: payload.contenu,
+          createdAt: payload.createdAt,
+          updatedAt: payload.createdAt,
+        } as ApiMessage)
+
+        if (pendingIndex !== -1) {
+          const next = [...existing]
+          next[pendingIndex] = { ...mapped, status: "sent" }
+          return { ...prev, [echangeId]: next }
+        }
+
+        return { ...prev, [echangeId]: [...existing, mapped] }
+      })
+    })
+
+    return () => {
+      socket.disconnect()
+      socketRef.current = null
+    }
+  }, [mapApiMessage, token])
+
+  useEffect(() => {
+    if (!token) return
+
+    const fetchEchanges = async () => {
+      try {
+        setLoadingEchanges(true)
+        setError(null)
+        const response = await echangeApi.getAll(token)
+        const list = Array.isArray(response.data) ? (response.data as Echange[]) : []
+        setEchanges(list)
+
+        // Join exchange rooms for realtime updates
+        const socket = socketRef.current
+        if (socket && socket.connected) {
+          list.forEach((e) => {
+            socket.emit("join_echange", { echangeId: e._id })
+          })
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Impossible de charger vos échanges")
+      } finally {
+        setLoadingEchanges(false)
+      }
+    }
+
+    fetchEchanges()
+  }, [token])
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
@@ -193,26 +276,148 @@ export function MessagingPageContent() {
     conv.participant.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
+  const loadMessages = useCallback(
+    async (echangeId: string) => {
+      if (!token) return
+      try {
+        setLoadingMessages(true)
+        setError(null)
+        const response = await messageApi.getByEchange(echangeId, token)
+        const data = Array.isArray(response.data) ? (response.data as ApiMessage[]) : []
+        const normalized = data.map(mapApiMessage)
+        setMessagesByEchange((prev) => ({ ...prev, [echangeId]: normalized }))
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Impossible de charger les messages")
+      } finally {
+        setLoadingMessages(false)
+      }
+    },
+    [mapApiMessage, token],
+  )
+
   const handleSelectConversation = (conv: Conversation) => {
-    setSelectedConversation(conv)
+    setSelectedConversationId(conv.id)
     setShowMobileChat(true)
+    if (!messagesByEchange[conv.id]) {
+      loadMessages(conv.id)
+    }
   }
 
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedConversation) return
-    // In a real app, this would send the message to the backend
-    setNewMessage("")
+  const handleSendMessage = async () => {
+    if ((!newMessage.trim() && selectedImages.length === 0) || !selectedConversationId || !token) return
+
+    const socket = socketRef.current
+
+    const sendTextMessage = async () => {
+      const payload = { echangeId: selectedConversationId, contenu: newMessage.trim() }
+
+      if (socket && socket.connected) {
+        socket.emit("send_message", payload, (err?: Error) => {
+          if (err) {
+            setError(err.message)
+          }
+        })
+      } else {
+        const response = await messageApi.send(payload, token)
+        const created = (response.data as ApiMessage) || null
+        if (created) {
+          const normalized = mapApiMessage(created)
+          setMessagesByEchange((prev) => {
+            const existing = prev[selectedConversationId] ?? []
+            return {
+              ...prev,
+              [selectedConversationId]: [...existing, normalized],
+            }
+          })
+        }
+      }
+    }
+
+    const sendImageMessage = async (file: File, preview: string) => {
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      const tempMessage: Message = {
+        id: tempId,
+        content: preview,
+        senderId: user?._id ?? "",
+        timestamp: new Date(),
+        isRead: true,
+        isImage: true,
+        status: "uploading",
+      }
+
+      addMessageToEchange(selectedConversationId, tempMessage)
+
+      try {
+        const uploadResponse = await messageApi.uploadImage(file, token)
+        const imageUrl = uploadResponse.url
+        const payload = { echangeId: selectedConversationId, contenu: imageUrl }
+
+        if (socket && socket.connected) {
+          await new Promise<void>((resolve, reject) => {
+            socket.emit("send_message", payload, (err?: Error, messageId?: string) => {
+              if (err) {
+                return reject(err)
+              }
+              updateMessageInEchange(selectedConversationId, tempId, {
+                id: messageId ?? tempId,
+                content: imageUrl,
+                timestamp: new Date(),
+                isImage: true,
+                status: "sent",
+              })
+              resolve()
+            })
+          })
+        } else {
+          const response = await messageApi.send(payload, token)
+          const created = (response.data as ApiMessage) || null
+          if (created) {
+            updateMessageInEchange(selectedConversationId, tempId, mapApiMessage(created))
+          }
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Envoi du message impossible")
+        updateMessageInEchange(selectedConversationId, tempId, { status: "error" })
+      }
+    }
+
+    try {
+      if (newMessage.trim()) {
+        await sendTextMessage()
+        setNewMessage("")
+      }
+
+      for (let i = 0; i < selectedImages.length; i++) {
+        const file = selectedImages[i]
+        const preview = imagePreviews[i]
+        if (file && preview) {
+          await sendImageMessage(file, preview)
+        }
+      }
+
+      setSelectedImages([])
+      setImagePreviews([])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Envoi du message impossible")
+    }
   }
 
   const handleBackToList = () => {
     setShowMobileChat(false)
   }
 
+  const selectedConversation = selectedConversationId
+    ? conversations.find((c) => c.id === selectedConversationId) || null
+    : null
+
+  const selectedMessages = selectedConversationId ? messagesByEchange[selectedConversationId] || [] : []
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
       <h1 className="text-2xl font-bold text-foreground mb-6">Messagerie</h1>
+      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
       
-      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden h-[calc(100vh-220px)] min-h-[500px]">
+      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden h-[calc(100vh-220px)] min-h-125">
         <div className="flex h-full">
           {/* Conversations List */}
           <div
@@ -237,7 +442,9 @@ export function MessagingPageContent() {
             {/* Conversations */}
             <ScrollArea className="flex-1">
               <div className="divide-y divide-border">
-                {filteredConversations.length === 0 ? (
+                {loadingEchanges ? (
+                  <div className="p-8 text-center text-muted-foreground">Chargement des conversations...</div>
+                ) : filteredConversations.length === 0 ? (
                   <div className="p-8 text-center text-muted-foreground">
                     <p>Aucune conversation trouvée</p>
                   </div>
@@ -358,40 +565,72 @@ export function MessagingPageContent() {
                 {/* Messages */}
                 <div ref={scrollRef} className="flex-1 overflow-y-auto">
                   <div className="p-4 space-y-4">
-                    {selectedConversation.messages.map((message) => {
-                      const isMe = message.senderId === "me"
-                      return (
-                        <div
-                          key={message.id}
-                          className={cn(
-                            "flex",
-                            isMe ? "justify-end" : "justify-start"
-                          )}
-                        >
+                    {loadingMessages ? (
+                      <p className="text-sm text-muted-foreground">Chargement des messages...</p>
+                    ) : selectedMessages.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Aucun message pour le moment.</p>
+                    ) : (
+                      selectedMessages.map((message) => {
+                        const isMe = message.senderId === user?._id
+                        const isImage = message.isImage
+                        return (
                           <div
+                            key={message.id}
                             className={cn(
-                              "max-w-[75%] rounded-2xl px-4 py-2.5",
-                              isMe
-                                ? "bg-primary text-primary-foreground rounded-br-md"
-                                : "bg-muted text-foreground rounded-bl-md"
+                              "flex",
+                              isMe ? "justify-end" : "justify-start"
                             )}
                           >
-                            <p className="text-sm leading-relaxed">{message.content}</p>
-                            <p
+                            <div
                               className={cn(
-                                "text-[10px] mt-1",
-                                isMe ? "text-primary-foreground/70" : "text-muted-foreground"
+                                "max-w-[75%]",
+                                isImage
+                                  ? "p-0 bg-transparent shadow-none"
+                                  : "rounded-2xl px-4 py-2.5",
+                                !isImage && (isMe
+                                  ? "bg-primary text-primary-foreground rounded-br-md"
+                                  : "bg-muted text-foreground rounded-bl-md")
                               )}
                             >
-                              {message.timestamp.toLocaleTimeString("fr-FR", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </p>
+                              {isImage ? (
+                                <div className="relative overflow-hidden rounded-lg border border-border bg-background">
+                                  <Image
+                                    src={message.content}
+                                    alt="Image envoyée"
+                                    width={320}
+                                    height={320}
+                                    className="h-auto w-full max-w-xs object-cover"
+                                  />
+                                  {message.status === "uploading" && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-xs font-medium">
+                                      Envoi en cours...
+                                    </div>
+                                  )}
+                                  {message.status === "error" && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-destructive/80 text-destructive-foreground text-xs font-medium">
+                                      Échec de l'envoi
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <p className="text-sm leading-relaxed">{message.content}</p>
+                              )}
+                              <p
+                                className={cn(
+                                  "text-[10px] mt-1",
+                                  isMe ? "text-primary-foreground/70" : "text-muted-foreground"
+                                )}
+                              >
+                                {message.timestamp.toLocaleTimeString("fr-FR", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      )
-                    })}
+                        )
+                      })
+                    )}
                     <div ref={messagesEndRef} />
                   </div>
                 </div>
@@ -443,14 +682,6 @@ export function MessagingPageContent() {
                       className="text-muted-foreground hover:text-foreground shrink-0"
                     >
                       <ImageIcon className="size-5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-foreground shrink-0"
-                    >
-                      <Paperclip className="size-5" />
                     </Button>
                     <Input
                       placeholder="Écrivez votre message..."

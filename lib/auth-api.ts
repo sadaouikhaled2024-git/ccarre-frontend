@@ -92,11 +92,11 @@ export const authApi = {
   },
 
   getMe(token: string) {
-    return request<AuthUser>("/api/auth/me", {
+    return request<{ success: boolean; data: { user: AuthUser } }>("/api/auth/me", {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
       },
-    })
+    }).then((res) => res.data?.user)
   },
 }

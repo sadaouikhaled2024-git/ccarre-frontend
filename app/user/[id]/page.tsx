@@ -1,26 +1,31 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { useAuth } from "@/contexts/auth-context"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { User, Mail, GraduationCap, Calendar, MapPin, Package, Edit, Plus } from "lucide-react"
-import Link from "next/link"
+import { User, Mail, GraduationCap, Calendar, MapPin, Package } from "lucide-react"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
 import { annonceApi, type Annonce } from "@/lib/annonce-api"
-import { favoriteApi } from "@/lib/favorite-api"
 
-export default function ProfilePage() {
-  const { isAuthenticated, loading, user, token } = useAuth()
+interface ProfileUser {
+  firstName?: string
+  lastName?: string
+  email?: string
+  createdAt?: string
+}
+
+export default function PublicUserProfilePage() {
+  const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const { isAuthenticated, loading, token } = useAuth()
+  const [profileUser, setProfileUser] = useState<ProfileUser | null>(null)
   const [announcements, setAnnouncements] = useState<Annonce[]>([])
-  const [favoritesCount, setFavoritesCount] = useState(0)
   const [isLoadingData, setIsLoadingData] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -31,30 +36,36 @@ export default function ProfilePage() {
   }, [isAuthenticated, loading, router])
 
   useEffect(() => {
-    if (!token) return
+    if (!token || !id) return
 
     const fetchData = async () => {
       try {
         setIsLoadingData(true)
         setError(null)
 
-        const [myAnnoncesRes, favoritesRes] = await Promise.all([
-          annonceApi.getAll({ mine: "true" }, token),
-          favoriteApi.getAll(token),
-        ])
-
-        const annonces = myAnnoncesRes.data?.annonces ?? []
+        const res = await annonceApi.getAll({ ownerId: id }, token)
+        const annonces = res.data?.annonces ?? []
         setAnnouncements(annonces)
-        setFavoritesCount(Array.isArray(favoritesRes.data) ? favoritesRes.data.length : 0)
+
+        if (annonces.length > 0) {
+          const owner = annonces[0].owner as any
+          setProfileUser({
+            firstName: owner?.firstName,
+            lastName: owner?.lastName,
+            email: owner?.email,
+          })
+        } else {
+          setProfileUser({ firstName: "Utilisateur", lastName: "", email: "" })
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Impossible de charger vos données")
+        setError(err instanceof Error ? err.message : "Impossible de charger ce profil")
       } finally {
         setIsLoadingData(false)
       }
     }
 
     fetchData()
-  }, [token])
+  }, [id, token])
 
   const stats = useMemo(() => {
     const total = announcements.length
@@ -82,17 +93,17 @@ export default function ProfilePage() {
             <CardContent className="pt-6">
               <div className="flex flex-col items-center gap-6 md:flex-row md:items-start">
                 <Avatar className="size-24 border-4 border-primary/20">
-                  <AvatarImage src={(user as any)?.profileImage} alt={`${user?.firstName} ${user?.lastName}`} />
+                  <AvatarImage src={undefined} alt={`${profileUser?.firstName ?? ""} ${profileUser?.lastName ?? ""}`} />
                   <AvatarFallback className="bg-primary/10 text-primary text-2xl">
-                    {`${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}` || "U"}
+                    {`${profileUser?.firstName?.[0] ?? ""}${profileUser?.lastName?.[0] ?? ""}` || "U"}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 text-center md:text-left">
-                  <h1 className="text-2xl font-bold text-foreground">{`${user?.firstName ?? ""} ${user?.lastName ?? ""}`}</h1>
+                  <h1 className="text-2xl font-bold text-foreground">{`${profileUser?.firstName ?? ""} ${profileUser?.lastName ?? ""}`}</h1>
                   <div className="mt-3 flex flex-col gap-2">
                     <div className="flex items-center justify-center gap-2 text-muted-foreground md:justify-start">
                       <Mail className="size-4" />
-                      <span className="text-sm">{user?.email}</span>
+                      <span className="text-sm">{profileUser?.email || "Email non renseigné"}</span>
                     </div>
                     <div className="flex items-center justify-center gap-2 text-muted-foreground md:justify-start">
                       <GraduationCap className="size-4" />
@@ -105,15 +116,11 @@ export default function ProfilePage() {
                     <div className="flex items-center justify-center gap-2 text-muted-foreground md:justify-start">
                       <Calendar className="size-4" />
                       <span className="text-sm">
-                        Membre depuis {user?.createdAt ? new Date(user.createdAt).toLocaleDateString("fr-FR") : "N/A"}
+                        Membre depuis {profileUser?.createdAt ? new Date(profileUser.createdAt).toLocaleDateString("fr-FR") : "N/A"}
                       </span>
                     </div>
                   </div>
                 </div>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Edit className="size-4" />
-                  Modifier le profil
-                </Button>
               </div>
             </CardContent>
           </Card>
@@ -148,8 +155,8 @@ export default function ProfilePage() {
                   <Package className="size-6 text-accent" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">{favoritesCount}</p>
-                  <p className="text-sm text-muted-foreground">Favoris enregistrés</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.sold}</p>
+                  <p className="text-sm text-muted-foreground">Annonces vendues</p>
                 </div>
               </CardContent>
             </Card>
@@ -163,16 +170,12 @@ export default function ProfilePage() {
                 <TabsTrigger value="active">Disponibles</TabsTrigger>
                 <TabsTrigger value="sold">Vendues</TabsTrigger>
               </TabsList>
-              <Button size="sm" className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
-                <Plus className="size-4" />
-                Nouvelle annonce
-              </Button>
             </div>
 
             <TabsContent value="all" className="mt-0">
               <div className="grid gap-4">
                 {isLoadingData ? (
-                  <p className="text-sm text-muted-foreground">Chargement de vos annonces...</p>
+                  <p className="text-sm text-muted-foreground">Chargement des annonces...</p>
                 ) : announcements.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Aucune annonce publiée pour le moment.</p>
                 ) : (

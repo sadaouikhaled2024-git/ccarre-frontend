@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Edit, Trash2 } from "lucide-react"
 import Link from "next/link"
+import { useAuth } from "@/contexts/auth-context"
+import { useEffect, useState } from "react"
+import { annonceApi, type Annonce } from "@/lib/annonce-api"
+import { useRouter } from "next/navigation"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,55 +22,59 @@ import {
 } from "@/components/ui/alert-dialog"
 
 export default function MyAnnouncementsPage() {
-  // Mock announcements data - not fetched for now
-  const mockAnnouncements = [
-    {
-      _id: "1",
-      title: "MacBook Pro 2023",
-      category: "électronique",
-      type: "vente",
-      price: 1200,
-      status: "active",
-      image: "/placeholder.jpg",
-      createdAt: new Date("2024-12-01"),
-    },
-    {
-      _id: "2",
-      title: "Livres Python Avancé",
-      category: "livres",
-      type: "prêt",
-      price: 0,
-      status: "active",
-      image: "/placeholder.jpg",
-      createdAt: new Date("2024-12-05"),
-    },
-    {
-      _id: "3",
-      title: "Vélo Route",
-      category: "sports",
-      type: "échange",
-      price: 0,
-      status: "archived",
-      image: "/placeholder.jpg",
-      createdAt: new Date("2024-11-20"),
-    },
-  ]
+  const { isAuthenticated, loading, token } = useAuth()
+  const router = useRouter()
+  const [announcements, setAnnouncements] = useState<Annonce[]>([])
+  const [isLoadingData, setIsLoadingData] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      router.replace("/auth")
+    }
+  }, [isAuthenticated, loading, router])
+
+  useEffect(() => {
+    if (!token) return
+
+    const fetchMyAnnouncements = async () => {
+      try {
+        setIsLoadingData(true)
+        setError(null)
+        const response = await annonceApi.getAll({ mine: "true" }, token)
+        setAnnouncements(response.data?.annonces ?? [])
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Impossible de charger vos annonces")
+      } finally {
+        setIsLoadingData(false)
+      }
+    }
+
+    fetchMyAnnouncements()
+  }, [token])
 
   const handleDelete = (id: string) => {
-    console.log("Delete announcement:", id)
-    // API call would go here
+    if (!token) return
+    annonceApi
+      .delete(id, token)
+      .then(() => {
+        setAnnouncements((prev) => prev.filter((a) => a._id !== id))
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Suppression impossible"))
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "active":
+      case "disponible":
         return "bg-rose-100 text-rose-800"
-      case "archived":
+      case "vendu":
         return "bg-rose-200 text-rose-800"
       default:
         return "bg-rose-100 text-rose-800"
     }
   }
+
+  if (loading || !isAuthenticated) return null
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -82,24 +90,28 @@ export default function MyAnnouncementsPage() {
             </Link>
           </div>
 
+          {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+
           <div className="space-y-4">
-            {mockAnnouncements.length > 0 ? (
-              mockAnnouncements.map((announcement) => (
+            {isLoadingData ? (
+              <p className="text-muted-foreground">Chargement de vos annonces...</p>
+            ) : announcements.length > 0 ? (
+              announcements.map((announcement) => (
                 <div key={announcement._id} className="flex gap-4 rounded-lg border border-border p-4 hover:shadow-lg transition-shadow">
-                  <div className="h-24 w-24 flex-shrink-0 rounded-lg bg-muted" />
+                  <div className="h-24 w-24 shrink-0 rounded-lg bg-muted" />
                   <div className="flex-1">
                     <h3 className="font-bold text-lg text-foreground">{announcement.title}</h3>
                     <p className="text-sm text-muted-foreground">{announcement.category}</p>
                     <div className="mt-2 flex gap-2">
                       <Badge variant="outline">{announcement.type}</Badge>
                       <Badge className={getStatusColor(announcement.status)}>
-                        {announcement.status === "active" ? "Actif" : "Archivé"}
+                        {announcement.status === "disponible" ? "Disponible" : announcement.status}
                       </Badge>
                     </div>
                   </div>
                   <div className="flex flex-col items-end justify-between">
                     <p className="text-lg font-bold text-primary">
-                      {announcement.price > 0 ? `${announcement.price}€` : "N/A"}
+                      {announcement.price && announcement.price > 0 ? `${announcement.price}€` : "N/A"}
                     </p>
                     <div className="flex gap-2">
                       <Link href={`/announcements/${announcement._id}/edit`}>

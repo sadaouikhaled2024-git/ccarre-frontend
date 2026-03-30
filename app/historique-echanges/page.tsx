@@ -4,61 +4,53 @@ import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { Badge } from "@/components/ui/badge"
 import { Clock } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { echangeApi, type Echange, type EchangeStatus } from "@/lib/echange-api"
+import { useAuth } from "@/contexts/auth-context"
+import { cn } from "@/lib/utils"
 
 export default function ExchangeHistoryPage() {
-  // Mock exchange data - not fetched for now
-  const mockExchanges = [
-    {
-      _id: "1",
-      announcement: {
-        title: "iPhone 13",
-        type: "échange",
-      },
-      utilisateur: {
-        firstName: "Jean",
-        lastName: "Dupont",
-      },
-      status: "acceptés",
-      date: new Date("2024-12-15"),
-    },
-    {
-      _id: "2",
-      announcement: {
-        title: "Vélo Route",
-        type: "prêt",
-      },
-      utilisateur: {
-        firstName: "Marie",
-        lastName: "Martin",
-      },
-      status: "en attente",
-      date: new Date("2024-12-20"),
-    },
-    {
-      _id: "3",
-      announcement: {
-        title: "Laptop Dell",
-        type: "vente",
-      },
-      utilisateur: {
-        firstName: "Pierre",
-        lastName: "Bernard",
-      },
-      status: "terminés",
-      date: new Date("2024-12-10"),
-    },
-  ]
+  const { token, user } = useAuth()
+  const [ongoing, setOngoing] = useState<Echange[]>([])
+  const [completed, setCompleted] = useState<Echange[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const getStatusColor = (status: string) => {
+  useEffect(() => {
+    if (!token) return
+
+    const fetchHistory = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await echangeApi.getHistory(token)
+        const data = response.data as { ongoing: Echange[]; completed: Echange[] }
+        setOngoing(data?.ongoing || [])
+        setCompleted(data?.completed || [])
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Impossible de charger l'historique")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchHistory()
+  }, [token])
+
+  const exchanges = useMemo(() => [...ongoing, ...completed], [ongoing, completed])
+
+  const getStatusColor = (status: EchangeStatus) => {
     switch (status) {
-      case "en attente":
-        return "bg-rose-100 text-rose-800"
-      case "acceptés":
-        return "bg-rose-200 text-rose-900"
-      case "terminés":
-        return "bg-rose-300 text-rose-900"
+      case "EN_ATTENTE":
+        return "bg-amber-100 text-amber-800 border-amber-200"
+      case "ACCEPTE":
+        return "bg-emerald-100 text-emerald-800 border-emerald-200"
+      case "TERMINE":
+        return "bg-slate-100 text-slate-800 border-slate-200"
+      case "REFUSE":
+        return "bg-rose-100 text-rose-800 border-rose-200"
       default:
-        return "bg-rose-100 text-rose-800"
+        return "bg-muted text-foreground"
     }
   }
 
@@ -69,6 +61,14 @@ export default function ExchangeHistoryPage() {
       vente: "Vente",
     }
     return labels[type] || type
+  }
+
+  const counterpartName = (echange: Echange) => {
+    const demandeur = echange.utilisateurDemandeur
+    const proprietaire = echange.utilisateurProprietaire
+    const meId = user?._id
+    const person = demandeur?._id === meId ? proprietaire : demandeur
+    return `${person?.firstName ?? ""} ${person?.lastName ?? ""}`.trim() || "Utilisateur"
   }
 
   return (
@@ -82,25 +82,34 @@ export default function ExchangeHistoryPage() {
           </div>
 
           <div className="space-y-4">
-            {mockExchanges.length > 0 ? (
-              mockExchanges.map((exchange) => (
+            {loading ? (
+              <p className="text-muted-foreground">Chargement...</p>
+            ) : error ? (
+              <p className="text-destructive">{error}</p>
+            ) : exchanges.length > 0 ? (
+              exchanges.map((exchange) => (
                 <div key={exchange._id} className="rounded-lg border border-border p-4 hover:shadow-lg transition-shadow">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <h3 className="font-bold text-lg text-foreground">{exchange.announcement.title}</h3>
+                      <h3 className="font-bold text-lg text-foreground">{exchange.annonce?.title ?? "Annonce"}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {exchange.utilisateur.firstName} {exchange.utilisateur.lastName}
+                        {counterpartName(exchange)}
                       </p>
                       <p className="mt-2 text-xs text-muted-foreground">
-                        {exchange.date.toLocaleDateString("fr-FR")}
+                        {new Date(exchange.updatedAt).toLocaleDateString("fr-FR")}
                       </p>
+                      {exchange.historique && exchange.historique.length > 0 && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Dernier changement: {exchange.historique[exchange.historique.length - 1].vers}
+                        </p>
+                      )}
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">
-                        {getTypeLabel(exchange.announcement.type)}
+                        {getTypeLabel(exchange.annonce?.type || "")}
                       </Badge>
-                      <Badge className={getStatusColor(exchange.status)}>
-                        {exchange.status}
+                      <Badge className={cn("border", getStatusColor(exchange.statut))}>
+                        {exchange.statut.replace("_", " ")}
                       </Badge>
                     </div>
                   </div>

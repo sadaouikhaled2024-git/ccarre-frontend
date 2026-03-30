@@ -12,6 +12,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Heart } from "lucide-react"
+import { echangeApi } from "@/lib/echange-api"
+import { useAuth } from "@/contexts/auth-context"
 
 interface InterestedModalProps {
   announcementId: string
@@ -26,9 +28,12 @@ export function InterestedModal({
   announcementType,
   ownerName,
 }: InterestedModalProps) {
+  const { token } = useAuth()
   const [open, setOpen] = useState(false)
   const [message, setMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
   const getDefaultMessage = () => {
     const type = announcementType.toLowerCase()
@@ -45,14 +50,21 @@ export function InterestedModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError(null)
+    setSuccess(null)
     try {
-      // API call would go here to send message
-      console.log("Sending message to", ownerName, ":", message)
-      // await contactApi.sendMessage(announcementId, message)
+      if (!token) {
+        throw new Error("Vous devez être connecté pour envoyer un message")
+      }
+
+      const payload = message || getDefaultMessage()
+      await echangeApi.create(announcementId, token, payload)
+
+      setSuccess("Votre demande a été envoyée dans la messagerie")
       setOpen(false)
       setMessage("")
     } catch (error) {
-      console.error("Error sending message:", error)
+      setError(error instanceof Error ? error.message : "Impossible d'envoyer le message")
     } finally {
       setIsLoading(false)
     }
@@ -81,6 +93,9 @@ export function InterestedModal({
             onChange={(e) => setMessage(e.target.value)}
             className="min-h-32 border-border"
           />
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          {success && <p className="text-sm text-emerald-600">{success}</p>}
 
           <div className="flex gap-2 justify-end">
             <Button
