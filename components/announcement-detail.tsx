@@ -4,20 +4,26 @@ import Image from "next/image"
 import { Card } from "@/components/ui/card"
 import { useState, useEffect } from "react"
 import { InterestedModal } from "@/components/interested-modal"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, Ban, Flag, Trash2 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { annonceApi } from "@/lib/annonce-api"
+import { blockApi } from "@/lib/block-api"
+import { reportApi } from "@/lib/report-api"
+import { Button } from "@/components/ui/button"
+import { useToast } from "@/hooks/use-toast"
 
 interface AnnouncementDetailProps {
   id: string
 }
 
 export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const [announcement, setAnnouncement] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [blockedIds, setBlockedIds] = useState<string[]>([])
+  const { toast } = useToast()
 
   useEffect(() => {
     async function fetchAnnouncement() {
@@ -38,6 +44,14 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
 
     fetchAnnouncement()
   }, [id, token])
+
+  useEffect(() => {
+    if (!token) return
+    blockApi
+      .list(token)
+      .then((res) => setBlockedIds((res.data || []).map((b) => (b.blocked as any)?._id || b.blocked)))
+      .catch(() => {})
+  }, [token])
 
   if (loading) {
     return (
@@ -68,6 +82,55 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
   const prevImage = () => {
     if (hasMultipleImages) {
       setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!token || !announcement?._id) return
+    if (!confirm("Supprimer cette annonce ?")) return
+    try {
+      await annonceApi.delete(announcement._id, token)
+      toast({ title: "Annonce supprimée" })
+      setAnnouncement(null)
+    } catch (err) {
+      toast({ title: "Suppression impossible", description: err instanceof Error ? err.message : "Erreur" })
+    }
+  }
+
+  const handleReport = async () => {
+    if (!token || !announcement?._id) {
+      toast({ title: "Connectez-vous pour signaler" })
+      return
+    }
+    const reason = prompt("Expliquez la raison du signalement")
+    if (!reason) return
+    try {
+      await reportApi.create({ targetId: announcement._id, targetType: "ANNONCE", reason }, token)
+      toast({ title: "Signalement envoyé" })
+    } catch (err) {
+      toast({ title: "Signalement impossible", description: err instanceof Error ? err.message : "Erreur" })
+    }
+  }
+
+  const handleBlockOwner = async () => {
+    if (!token || !announcement?.owner?._id) {
+      toast({ title: "Connectez-vous pour bloquer" })
+      return
+    }
+    const ownerId = announcement.owner._id
+    const isBlocked = blockedIds.includes(ownerId)
+    try {
+      if (isBlocked) {
+        await blockApi.unblock(ownerId, token)
+        setBlockedIds((prev) => prev.filter((id) => id !== ownerId))
+        toast({ title: "Utilisateur débloqué" })
+      } else {
+        await blockApi.block(ownerId, token)
+        setBlockedIds((prev) => [...prev, ownerId])
+        toast({ title: "Utilisateur bloqué" })
+      }
+    } catch (err) {
+      toast({ title: "Action impossible", description: err instanceof Error ? err.message : "Erreur" })
     }
   }
 
@@ -128,6 +191,23 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
         <div className="space-y-6">
           <Card className="p-6 space-y-4">
             <h1 className="text-3xl font-bold text-foreground">{announcement.title}</h1>
+
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={handleReport}>
+                <Flag className="size-4 mr-2" /> Signaler
+              </Button>
+              {announcement.owner?._id && (
+                <Button variant="outline" size="sm" onClick={handleBlockOwner}>
+                  <Ban className="size-4 mr-2" />
+                  {blockedIds.includes(announcement.owner._id) ? "Débloquer" : "Bloquer"}
+                </Button>
+              )}
+              {user?._id === announcement.owner?._id && (
+                <Button variant="destructive" size="sm" onClick={handleDelete}>
+                  <Trash2 className="size-4 mr-2" /> Supprimer
+                </Button>
+              )}
+            </div>
 
             {announcement.type === "vente" && announcement.price && (
               <div className="space-y-2 border-t border-border pt-4">

@@ -20,6 +20,9 @@ import { useAuth } from "@/contexts/auth-context"
 import { echangeApi, type Echange } from "@/lib/echange-api"
 import { messageApi, type Message as ApiMessage } from "@/lib/message-api"
 import { io, type Socket } from "socket.io-client"
+import { blockApi } from "@/lib/block-api"
+import { reportApi } from "@/lib/report-api"
+import { useToast } from "@/hooks/use-toast"
 
 interface Message {
   id: string
@@ -83,10 +86,12 @@ export function MessagingPageContent() {
   const [showMobileChat, setShowMobileChat] = useState(false)
   const [selectedImages, setSelectedImages] = useState<File[]>([])
   const [imagePreviews, setImagePreviews] = useState<string[]>([])
+  const [blockedIds, setBlockedIds] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const socketRef = useRef<Socket | null>(null)
+  const { toast } = useToast()
 
   const isImageContent = useCallback((content: string) => {
     return content.startsWith("data:image") || /\.(png|jpe?g|gif|webp|avif)$/i.test(content)
@@ -218,6 +223,14 @@ export function MessagingPageContent() {
       socketRef.current = null
     }
   }, [mapApiMessage, token])
+
+  useEffect(() => {
+    if (!token) return
+    blockApi
+      .list(token)
+      .then((res) => setBlockedIds((res.data || []).map((b) => (b.blocked as any)?._id || b.blocked)))
+      .catch(() => {})
+  }, [token])
 
   useEffect(() => {
     if (!token) return
@@ -550,13 +563,58 @@ export function MessagingPageContent() {
                         <Trash2 className="size-4 mr-2" />
                         <span>Supprimer la conversation</span>
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="cursor-pointer text-orange-600">
+                      <DropdownMenuItem
+                        className="cursor-pointer text-orange-600"
+                        onClick={async () => {
+                          const reason = prompt("Expliquez la raison du signalement")
+                          if (!reason || !token) return
+                          try {
+                            await reportApi.create(
+                              {
+                                targetId: selectedConversation.participant.id,
+                                targetType: "USER",
+                                reason,
+                              },
+                              token,
+                            )
+                            toast({ title: "Signalement envoyé" })
+                          } catch (err) {
+                            toast({
+                              title: "Signalement impossible",
+                              description: err instanceof Error ? err.message : "Erreur",
+                            })
+                          }
+                        }}
+                      >
                         <Flag className="size-4 mr-2" />
                         <span>Signaler</span>
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="cursor-pointer text-red-600">
+                      <DropdownMenuItem
+                        className="cursor-pointer text-red-600"
+                        onClick={async () => {
+                          if (!token) return
+                          const targetId = selectedConversation.participant.id
+                          const isBlocked = blockedIds.includes(targetId)
+                          try {
+                            if (isBlocked) {
+                              await blockApi.unblock(targetId, token)
+                              setBlockedIds((prev) => prev.filter((id) => id !== targetId))
+                              toast({ title: "Utilisateur débloqué" })
+                            } else {
+                              await blockApi.block(targetId, token)
+                              setBlockedIds((prev) => [...prev, targetId])
+                              toast({ title: "Utilisateur bloqué" })
+                            }
+                          } catch (err) {
+                            toast({
+                              title: "Action impossible",
+                              description: err instanceof Error ? err.message : "Erreur",
+                            })
+                          }
+                        }}
+                      >
                         <Ban className="size-4 mr-2" />
-                        <span>Bloquer</span>
+                        <span>{blockedIds.includes(selectedConversation.participant.id) ? "Débloquer" : "Bloquer"}</span>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

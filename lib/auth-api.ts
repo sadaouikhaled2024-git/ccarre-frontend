@@ -27,6 +27,8 @@ export interface AuthUser {
   lastName: string
   email: string
   isVerified?: boolean
+  role?: 'user' | 'admin'
+  isBanned?: boolean
   createdAt?: string
   updatedAt?: string
   [key: string]: unknown
