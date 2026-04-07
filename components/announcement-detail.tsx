@@ -4,13 +4,20 @@ import Image from "next/image"
 import { Card } from "@/components/ui/card"
 import { useState, useEffect } from "react"
 import { InterestedModal } from "@/components/interested-modal"
-import { ChevronLeft, ChevronRight, Ban, Flag, Trash2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, Flag, Trash2, Heart, MoreVertical } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { annonceApi } from "@/lib/annonce-api"
-import { blockApi } from "@/lib/block-api"
 import { reportApi } from "@/lib/report-api"
+import { favoriteApi } from "@/lib/favorite-api"
+import { showNotification } from "@/components/notification-toast"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 interface AnnouncementDetailProps {
   id: string
@@ -22,7 +29,8 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const [blockedIds, setBlockedIds] = useState<string[]>([])
+  const [isFavorite, setIsFavorite] = useState(false)
+  const [favoriteLoading, setFavoriteLoading] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -45,13 +53,32 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
     fetchAnnouncement()
   }, [id, token])
 
+  // Check if announcement is in favorites
   useEffect(() => {
-    if (!token) return
-    blockApi
-      .list(token)
-      .then((res) => setBlockedIds((res.data || []).map((b) => (b.blocked as any)?._id || b.blocked)))
-      .catch(() => {})
-  }, [token])
+    async function checkFavorite() {
+      if (!token) {
+        console.log("⭐ [FAV] Pas de token, favoris non vérifiés")
+        return
+      }
+      try {
+        console.log("⭐ [FAV] Vérification si l'annonce est en favori...")
+        const response = await favoriteApi.getAll(token)
+        console.log("⭐ [FAV] Réponse API favoris:", response)
+        if (response.success && response.data) {
+          const isFav = (response.data as any[]).some((fav: any) => fav._id === id)
+          console.log(`⭐ [FAV] Annonce ${id} est en favori: ${isFav}`)
+          setIsFavorite(isFav)
+        }
+      } catch (err) {
+        console.error("❌ [FAV] Erreur lors de la vérification des favoris:", err)
+        // Silently fail - favorites are optional
+      }
+    }
+
+    if (token && announcement) {
+      checkFavorite()
+    }
+  }, [token, announcement, id])
 
   if (loading) {
     return (
@@ -112,25 +139,39 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
     }
   }
 
-  const handleBlockOwner = async () => {
-    if (!token || !announcement?.owner?._id) {
-      toast({ title: "Connectez-vous pour bloquer" })
+  const handleAddFavorite = async () => {
+    if (!token) {
+      console.log("⭐ [FAV] Pas authentifié, redirection nécessaire")
+      toast({ title: "Connectez-vous pour ajouter aux favoris" })
       return
     }
-    const ownerId = announcement.owner._id
-    const isBlocked = blockedIds.includes(ownerId)
+    
+    console.log(`⭐ [FAV] Début du toggle favori. isFavorite actuel: ${isFavorite}`)
+    console.log(`⭐ [FAV] ID annonce: ${announcement._id}`)
+    setFavoriteLoading(true)
     try {
-      if (isBlocked) {
-        await blockApi.unblock(ownerId, token)
-        setBlockedIds((prev) => prev.filter((id) => id !== ownerId))
-        toast({ title: "Utilisateur débloqué" })
+      if (isFavorite) {
+        // Remove from favorites
+        console.log("⭐ [FAV] Appel DELETE pour retirer des favoris...")
+        await favoriteApi.remove(announcement._id, token)
+        console.log("⭐ [FAV] Suppression réussie!")
+        setIsFavorite(false)
+        showNotification("Retiré des favoris", "info")
       } else {
-        await blockApi.block(ownerId, token)
-        setBlockedIds((prev) => [...prev, ownerId])
-        toast({ title: "Utilisateur bloqué" })
+        // Add to favorites
+        console.log("⭐ [FAV] Appel POST pour ajouter aux favoris...")
+        await favoriteApi.add(announcement._id, token)
+        console.log("⭐ [FAV] Ajout réussi!")
+        setIsFavorite(true)
+        showNotification("Ajouté aux favoris", "success")
       }
     } catch (err) {
-      toast({ title: "Action impossible", description: err instanceof Error ? err.message : "Erreur" })
+      console.error("❌ [FAV] Erreur lors du toggle favori:", err)
+      showNotification(err instanceof Error ? err.message : "Impossible de modifier les favoris", "error")
+      // Revert the state on error
+      setIsFavorite(!isFavorite)
+    } finally {
+      setFavoriteLoading(false)
     }
   }
 
@@ -192,21 +233,42 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
           <Card className="p-6 space-y-4">
             <h1 className="text-3xl font-bold text-foreground">{announcement.title}</h1>
 
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={handleReport}>
-                <Flag className="size-4 mr-2" /> Signaler
-              </Button>
-              {announcement.owner?._id && (
-                <Button variant="outline" size="sm" onClick={handleBlockOwner}>
-                  <Ban className="size-4 mr-2" />
-                  {blockedIds.includes(announcement.owner._id) ? "Débloquer" : "Bloquer"}
-                </Button>
-              )}
+            <div className="flex items-center justify-between gap-2">
               {user?._id === announcement.owner?._id && (
                 <Button variant="destructive" size="sm" onClick={handleDelete}>
                   <Trash2 className="size-4 mr-2" /> Supprimer
                 </Button>
               )}
+              
+              {/* Favorite Heart Button - VISIBLE */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleAddFavorite}
+                disabled={favoriteLoading}
+                className={`${
+                  isFavorite
+                    ? "bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100"
+                    : "text-rose-600 border-rose-200 hover:bg-rose-50"
+                }`}
+              >
+                <Heart className={`size-4 mr-2 ${isFavorite ? "fill-current" : ""}`} />
+                {isFavorite ? "Retiré des favoris" : "Ajouter aux favoris"}
+              </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm">
+                    <MoreVertical className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleReport}>
+                    <Flag className="size-4 mr-2" />
+                    Signaler
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             {announcement.type === "vente" && announcement.price && (
@@ -250,15 +312,15 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
         <p className="text-foreground leading-relaxed whitespace-pre-wrap">{announcement.description}</p>
 
         {announcement.type === "echange" && announcement.exchangeFor && (
-          <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-sm font-semibold text-amber-900 mb-2">Ce qu'il recherche en échange:</p>
+          <div className="mt-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+            <p className="text-sm font-semibold text-orange-900 mb-2">Ce qu'il recherche en échange:</p>
             <p className="text-foreground">{announcement.exchangeFor}</p>
           </div>
         )}
 
         {announcement.type === "pret" && announcement.borrowPeriod && (
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm font-semibold text-blue-900 mb-2">Période de prêt:</p>
+          <div className="mt-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+            <p className="text-sm font-semibold text-orange-900 mb-2">Période de prêt:</p>
             <p className="text-foreground">{announcement.borrowPeriod}</p>
           </div>
         )}

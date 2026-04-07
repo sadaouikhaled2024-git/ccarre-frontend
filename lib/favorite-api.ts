@@ -3,13 +3,16 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
 import type { Annonce } from "./annonce-api"
 
 export interface FavoritesResponse {
-  success: boolean
+  success?: boolean
   message?: string
-  data?: Annonce[]
+  data?: Annonce[] | Annonce
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}, token: string): Promise<T> {
-  const res = await fetch(`${API_URL}${endpoint}`, {
+  const url = `${API_URL}${endpoint}`
+  console.log("⭐ [API-REQUEST]", options.method || "GET", url)
+  
+  const res = await fetch(url, {
     ...options,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -19,9 +22,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}, token: st
   })
 
   const data = await res.json().catch(() => ({}))
+  console.log(`⭐ [API-RESPONSE] Status: ${res.status}, Data:`, data)
 
   if (!res.ok) {
-    throw new Error(data.message || data.error || "Une erreur est survenue")
+    const errorMsg = data.message || data.error || "Une erreur est survenue"
+    console.error(`⭐ [API-ERROR] ${res.status}:`, errorMsg)
+    throw new Error(errorMsg)
   }
 
   return data as T
@@ -29,14 +35,17 @@ async function request<T>(endpoint: string, options: RequestInit = {}, token: st
 
 export const favoriteApi = {
   getAll(token: string) {
+    console.log("⭐ [API] GET /api/favorites")
     return request<FavoritesResponse>("/api/favorites", { method: "GET" }, token)
   },
 
   add(annonceId: string, token: string) {
+    console.log("⭐ [API] POST /api/favorites/" + annonceId)
     return request<FavoritesResponse>(`/api/favorites/${annonceId}`, { method: "POST" }, token)
   },
 
   remove(annonceId: string, token: string) {
+    console.log("⭐ [API] DELETE /api/favorites/" + annonceId)
     return request<FavoritesResponse>(`/api/favorites/${annonceId}`, { method: "DELETE" }, token)
   },
 }

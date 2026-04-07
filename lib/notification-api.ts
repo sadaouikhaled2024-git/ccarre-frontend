@@ -1,19 +1,47 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
 
+export type NotificationType = 
+  | "MESSAGE"
+  | "ECHANGE_REQUEST"
+  | "ECHANGE_ACCEPTED"
+  | "ECHANGE_REFUSED"
+  | "ECHANGE_COMPLETED"
+  | "ADMIN"
+
 export interface Notification {
   _id: string
-  type: string
-  contenu: string
+  userId?: string
+  user?: {
+    _id: string
+    firstName: string
+    lastName: string
+    email?: string
+    avatar?: string
+  }
+  type: NotificationType
+  title?: string
+  contenu?: string
+  description?: string
+  message?: string
+  relatedMessage?: string
+  relatedEchange?: any | string
+  relatedAnnonce?: string
   read: boolean
   createdAt: string
-  relatedEchange?: string
-  relatedMessage?: string
+  updatedAt: string
+  notifiedBy?: {
+    firstName?: string
+    lastName?: string
+    avatar?: string
+  }
+  senderName?: string
+  senderAvatar?: string
 }
 
 export interface NotificationsResponse {
   success: boolean
   message?: string
-  data?: Notification[]
+  data?: Notification[] | { notifications: Notification[] }
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}, token: string): Promise<T> {
@@ -41,11 +69,24 @@ export const notificationApi = {
     return request<NotificationsResponse>(`/api/notifications${query}`, { method: "GET" }, token)
   },
 
+  markAsRead(id: string, token: string) {
+    return request<NotificationsResponse>(`/api/notifications/${id}/read`, { method: "PUT" }, token)
+  },
+
   markRead(id: string, token: string) {
     return request<NotificationsResponse>(`/api/notifications/${id}/read`, { method: "PUT" }, token)
+  },
+
+  markAllAsRead(token: string) {
+    return request<NotificationsResponse>("/api/notifications/read-all", { method: "PUT" }, token)
   },
 
   markAllRead(token: string) {
     return request<NotificationsResponse>("/api/notifications/read-all", { method: "PUT" }, token)
   },
+
+  delete(id: string, token: string) {
+    return request<NotificationsResponse>(`/api/notifications/${id}`, { method: "DELETE" }, token)
+  },
 }
+

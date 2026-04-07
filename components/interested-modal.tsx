@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   Dialog,
   DialogContent,
@@ -14,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Heart } from "lucide-react"
 import { echangeApi } from "@/lib/echange-api"
 import { useAuth } from "@/contexts/auth-context"
+import { useToast } from "@/hooks/use-toast"
 
 interface InterestedModalProps {
   announcementId: string
@@ -29,11 +31,12 @@ export function InterestedModal({
   ownerName,
 }: InterestedModalProps) {
   const { token } = useAuth()
+  const router = useRouter()
+  const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [message, setMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
 
   const getDefaultMessage = () => {
     const type = announcementType.toLowerCase()
@@ -51,20 +54,27 @@ export function InterestedModal({
     e.preventDefault()
     setIsLoading(true)
     setError(null)
-    setSuccess(null)
     try {
       if (!token) {
         throw new Error("Vous devez être connecté pour envoyer un message")
       }
 
       const payload = message || getDefaultMessage()
-      await echangeApi.create(announcementId, token, payload)
+      const response = await echangeApi.create(announcementId, token, payload)
+      const echangeId = (response.data as any)?._id
 
-      setSuccess("Votre demande a été envoyée dans la messagerie")
+      if (!echangeId) {
+        throw new Error("Impossible de créer l'échange")
+      }
+
+      toast({ title: "Échange créé avec succès!", description: "Redirection vers la messagerie..." })
       setOpen(false)
       setMessage("")
+      
+      // Redirect to messaging page with the new exchange
+      router.push(`/messagerie/${echangeId}`)
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Impossible d'envoyer le message")
+      setError(error instanceof Error ? error.message : "Impossible de créer l'échange")
     } finally {
       setIsLoading(false)
     }
@@ -80,22 +90,29 @@ export function InterestedModal({
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Contacter le propriétaire</DialogTitle>
+          <DialogTitle>Confirmation</DialogTitle>
           <DialogDescription>
-            Envoyez un message à {ownerName} concernant "{announcementTitle}"
+            Demander un échange avec {ownerName} pour "{announcementTitle}"
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Textarea
-            placeholder="Votre message..."
-            value={message || getDefaultMessage()}
-            onChange={(e) => setMessage(e.target.value)}
-            className="min-h-32 border-border"
-          />
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Message initial (optionnel)
+            </label>
+            <Textarea
+              placeholder="Laissez un message personnalisé..."
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="min-h-24 border-border"
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              Un message par défaut sera envoyé si vous laissez ce champ vide.
+            </p>
+          </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
-          {success && <p className="text-sm text-emerald-600">{success}</p>}
 
           <div className="flex gap-2 justify-end">
             <Button
@@ -108,10 +125,10 @@ export function InterestedModal({
             </Button>
             <Button
               type="submit"
-              disabled={isLoading || !message}
+              disabled={isLoading}
               className="bg-rose-500 hover:bg-rose-600"
             >
-              {isLoading ? "Envoi..." : "Envoyer"}
+              {isLoading ? "Création..." : "Créer l'échange"}
             </Button>
           </div>
         </form>

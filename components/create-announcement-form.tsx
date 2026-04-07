@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { annonceApi } from "@/lib/annonce-api"
+import { showNotification } from "@/components/notification-toast"
 
 const ANNOUNCEMENT_TYPES = [
   { value: "vente", label: "Vente" },
@@ -170,6 +171,7 @@ function CreateAnnouncementFormContent() {
       const response = await annonceApi.create(uploadFormData, token)
 
       if (response.success) {
+        showNotification("Annonce créée avec succès!", "success")
         setSuccess(true)
         setTimeout(() => {
           router.push(`/announcements/${response.data?.annonce._id}`)
@@ -192,9 +194,9 @@ function CreateAnnouncementFormContent() {
       )}
 
       {success && (
-        <Alert className="bg-green-50 border-green-200">
-          <CheckCircle2 className="h-4 w-4 text-green-600" />
-          <AlertDescription className="text-green-800">
+        <Alert className="bg-[#EC7578]/10 border-[#EC7578]/20">
+          <CheckCircle2 className="h-4 w-4 text-[#EC7578]" />
+          <AlertDescription className="text-[#EC7578]">
             Annonce créée avec succès! Redirection en cours...
           </AlertDescription>
         </Alert>

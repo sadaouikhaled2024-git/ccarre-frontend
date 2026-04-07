@@ -1,6 +1,6 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
 
-export type EchangeStatus = "EN_ATTENTE" | "ACCEPTE" | "TERMINE" | "REFUSE"
+export type EchangeStatus = "EN_ATTENTE" | "ACCEPTE" | "TERMINE" | "REFUSE" | "ANNULE"
 
 export interface Echange {
   _id: string
@@ -10,6 +10,8 @@ export interface Echange {
   statut: EchangeStatus
   messageInitial?: string
    historique?: { de?: EchangeStatus | null; vers: EchangeStatus; par: any; a: string }[]
+  lieuEchange?: string
+  prixFinal?: number
   createdAt: string
   updatedAt: string
 }
@@ -70,5 +72,25 @@ export const echangeApi = {
 
   complete(id: string, token: string) {
     return request<EchangeResponse>(`/api/echanges/${id}/complete`, { method: "PUT" }, token)
+  },
+
+  completeWithDetails(id: string, lieuEchange: string, prixFinal?: number, token?: string) {
+    if (!token) throw new Error("Token required")
+    const body: any = { lieuEchange }
+    if (prixFinal !== undefined && prixFinal !== null) {
+      body.prixFinal = prixFinal
+    }
+    return request<EchangeResponse>(
+      `/api/echanges/${id}/complete`,
+      {
+        method: "PUT",
+        body: JSON.stringify(body),
+      },
+      token,
+    )
+  },
+
+  cancel(id: string, token: string) {
+    return request<EchangeResponse>(`/api/echanges/${id}/cancel`, { method: "PUT" }, token)
   },
 }
