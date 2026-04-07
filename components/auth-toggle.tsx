@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button"
 import { User, UserX } from "lucide-react"
 
 export function AuthToggle() {
-  const { isAuthenticated, toggleAuth } = useAuth()
+  const { isAuthenticated, logout } = useAuth()
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
       <Button
-        onClick={toggleAuth}
+        onClick={logout}
         size="lg"
         className={`rounded-full shadow-lg transition-all ${
           isAuthenticated

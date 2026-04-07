@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { X, Upload, AlertCircle, CheckCircle2, Loader } from "lucide-react"
 import { annonceApi } from "@/lib/annonce-api"
+import { showNotification } from "@/components/notification-toast"
 
 const ANNOUNCEMENT_TYPES = [
   { value: "vente", label: "Vente" },
@@ -51,15 +52,32 @@ export function EditAnnouncementForm({ announcementId }: { announcementId: strin
   const [mainImagePreview, setMainImagePreview] = useState("")
   const [additionalImages, setAdditionalImages] = useState<File[]>([])
   const [additionalPreviews, setAdditionalPreviews] = useState<string[]>([])
+  const [removedImageIndices, setRemovedImageIndices] = useState<number[]>([])
 
   // Fetch announcement data on load
   useEffect(() => {
     async function fetchAnnouncement() {
       try {
+        console.log("🔧 [EDIT-FORM] Chargement de l'annonce ID:", announcementId)
         setLoading(true)
         const response = await annonceApi.getById(announcementId, token || undefined)
-        if (response.success && response.data?.annonce) {
-          const ann = response.data.annonce
+        console.log("🔧 [EDIT-FORM] Réponse complète:", response)
+        console.log("🔧 [EDIT-FORM] response.data:", response.data)
+        console.log("🔧 [EDIT-FORM] response.title (direct):", (response as any).title)
+        
+        // La structure peut être:
+        // 1. { data: { annonce: {...} } }
+        // 2. { annonce: {...} }
+        // 3. L'annonce elle-même {...}
+        let ann = (response.data as any)?.annonce || (response as any)?.annonce
+        
+        // Si on n'a toujours pas trouvé, c'est peut-être la réponse elle-même qui est l'annonce
+        if (!ann && (response as any).title) {
+          ann = response as any
+        }
+        
+        if (ann && ann._id) {
+          console.log("🔧 [EDIT-FORM] Annonce chargée:", ann)
           setFormData({
             title: ann.title || "",
             description: ann.description || "",
@@ -69,18 +87,31 @@ export function EditAnnouncementForm({ announcementId }: { announcementId: strin
             exchangeFor: ann.exchangeFor || "",
             borrowPeriod: ann.borrowPeriod || "",
           })
+          console.log("🔧 [EDIT-FORM] FormData défini:", {
+            title: ann.title,
+            description: ann.description,
+            type: ann.type,
+            category: ann.category,
+            price: ann.price,
+          })
+          
           // Set main image preview from existing announcement
           if (ann.images && ann.images[0]) {
+            console.log("🔧 [EDIT-FORM] Image principale:", ann.images[0])
             setMainImagePreview(ann.images[0])
           }
           // Set additional images
           if (ann.images && ann.images.length > 1) {
+            console.log("🔧 [EDIT-FORM] Images additionnelles:", ann.images.slice(1))
             setAdditionalPreviews(ann.images.slice(1))
           }
         } else {
+          console.error("🔧 [EDIT-FORM] Annonce non trouvée dans la réponse:", response)
+          console.error("🔧 [EDIT-FORM] ann:", ann)
           setError("Annonce non trouvée")
         }
       } catch (err) {
+        console.error("🔧 [EDIT-FORM] Erreur lors du chargement:", err)
         setError(err instanceof Error ? err.message : "Erreur lors du chargement de l'annonce")
       } finally {
         setLoading(false)
@@ -88,7 +119,10 @@ export function EditAnnouncementForm({ announcementId }: { announcementId: strin
     }
 
     if (token) {
+      console.log("🔧 [EDIT-FORM] Token trouvé, lancement du fetch")
       fetchAnnouncement()
+    } else {
+      console.log("🔧 [EDIT-FORM] Pas de token, attente...")
     }
   }, [announcementId, token])
 
@@ -128,38 +162,64 @@ export function EditAnnouncementForm({ announcementId }: { announcementId: strin
 
   const removeAdditionalImage = (index: number) => {
     setAdditionalImages((prev) => prev.filter((_, i) => i !== index))
-    setAdditionalPreviews((prev) => prev.filter((_, i) => i !== index))
+    setAdditionalPreviews((prev) => {
+      // If this is an existing image (URL), track it as removed
+      const preview = prev[index]
+      if (preview && !preview.startsWith('data:')) {
+        setRemovedImageIndices((prevRemoved) => [...prevRemoved, index])
+      }
+      return prev.filter((_, i) => i !== index)
+    })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    console.log("🔧 [EDIT] Début de la soumission du formulaire")
 
     if (!formData.title.trim()) {
       setError("Veuillez entrer un titre")
+      console.log("❌ [EDIT] Erreur: Titre vide")
       return
     }
 
     if (!formData.description.trim()) {
       setError("Veuillez entrer une description")
+      console.log("❌ [EDIT] Erreur: Description vide")
       return
     }
 
     if (formData.type === "vente" && !formData.price) {
       setError("Veuillez entrer un prix")
+      console.log("❌ [EDIT] Erreur: Prix vide pour une vente")
       return
     }
 
     if (formData.type === "echange" && !formData.exchangeFor.trim()) {
       setError("Veuillez indiquer ce que vous recherchez")
+      console.log("❌ [EDIT] Erreur: ExchangeFor vide")
       return
     }
 
     if (formData.type === "pret" && !formData.borrowPeriod.trim()) {
       setError("Veuillez indiquer la période de prêt")
+      console.log("❌ [EDIT] Erreur: BorrowPeriod vide")
       return
     }
 
+    console.log("✅ [EDIT] Validation réussie, préparation du FormData")
+    console.log("📝 [EDIT] FormData:", {
+      title: formData.title,
+      description: formData.description,
+      type: formData.type,
+      category: formData.category,
+      price: formData.type === "vente" ? formData.price : undefined,
+      exchangeFor: formData.type === "echange" ? formData.exchangeFor : undefined,
+      borrowPeriod: formData.type === "pret" ? formData.borrowPeriod : undefined,
+      mainImageFile: mainImage ? mainImage.name : "Pas de nouveau fichier",
+      additionalImagesCount: additionalImages.length,
+      existingImagesPreviewsCount: additionalPreviews.length,
+    })
     try {
       setSubmitting(true)
       const uploadFormData = new FormData()
@@ -182,9 +242,11 @@ export function EditAnnouncementForm({ announcementId }: { announcementId: strin
       }
 
       if (mainImage) {
+        console.log("📸 [EDIT] Ajout image principale:", mainImage.name)
         uploadFormData.append("images", mainImage)
       }
-      additionalImages.forEach((img) => {
+      additionalImages.forEach((img, idx) => {
+        console.log(`📸 [EDIT] Ajout image additionnelle ${idx}:`, img.name)
         uploadFormData.append("images", img)
       })
 
@@ -192,17 +254,24 @@ export function EditAnnouncementForm({ announcementId }: { announcementId: strin
         throw new Error("Authentication token required")
       }
 
+      console.log("🚀 [EDIT] Appel API PUT /api/annonces/:id avec annonce ID:", announcementId)
       const response = await annonceApi.update(announcementId, uploadFormData, token)
+      console.log("📋 [EDIT] Réponse API:", response)
 
       if (response.success) {
+        console.log("✅ [EDIT] Mise à jour réussie!")
+        showNotification("Annonce mise à jour avec succès!", "success")
         setSuccess(true)
         setTimeout(() => {
+          console.log("🔄 [EDIT] Redirection vers /mes-annonces")
           router.push("/mes-annonces")
         }, 1500)
       } else {
+        console.error("❌ [EDIT] Erreur API:", response.message)
         setError(response.message || "Erreur lors de la mise à jour de l'annonce")
       }
     } catch (err) {
+      console.error("❌ [EDIT] Exception lors de la soumission:", err)
       setError(err instanceof Error ? err.message : "Erreur lors de la mise à jour")
     } finally {
       setSubmitting(false)
@@ -228,9 +297,9 @@ export function EditAnnouncementForm({ announcementId }: { announcementId: strin
       )}
 
       {success && (
-        <Alert className="border-green-200 bg-green-50">
-          <CheckCircle2 className="h-4 w-4 text-green-600" />
-          <AlertDescription className="text-green-800">Annonce mise à jour avec succès!</AlertDescription>
+        <Alert className="border-[#EC7578]/20 bg-[#EC7578]/10">
+          <CheckCircle2 className="h-4 w-4 text-[#EC7578]" />
+          <AlertDescription className="text-[#EC7578]">Annonce mise à jour avec succès!</AlertDescription>
         </Alert>
       )}
 

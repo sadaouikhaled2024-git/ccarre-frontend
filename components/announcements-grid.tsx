@@ -10,6 +10,9 @@ import { useState, useEffect, useMemo } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from "@/contexts/auth-context"
 import { annonceApi } from "@/lib/annonce-api"
+import { favoriteApi } from "@/lib/favorite-api"
+import { showNotification } from "@/components/notification-toast"
+import { useToast } from "@/hooks/use-toast"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -79,8 +82,9 @@ export function AnnouncementsGrid({
   onFiltersChange?: (count: number) => void
 } = {}) {
   const { token } = useAuth()
+  const { toast } = useToast()
   const [announcements, setAnnouncements] = useState<any[]>([])
-  const [liked, setLiked] = useState<Set<string>>(new Set())
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<FilterState>({})
   const [allCategories, setAllCategories] = useState<string[]>([])
@@ -113,6 +117,37 @@ export function AnnouncementsGrid({
     }
 
     fetchAnnouncements()
+  }, [token])
+
+  // Charger les favoris
+  useEffect(() => {
+    async function fetchFavorites() {
+      if (!token) {
+        console.log("⭐ [GRID] Pas de token, pas de chargement des favoris")
+        return
+      }
+      try {
+        console.log("⭐ [GRID] Chargement des favoris...")
+        const response = await favoriteApi.getAll(token)
+        console.log("⭐ [GRID] Réponse favoris:", response)
+        
+        // La réponse peut être un tableau directement ou { data: [...] }
+        let favsList: any[] = []
+        if (Array.isArray(response)) {
+          favsList = response
+        } else if (response && typeof response === 'object' && 'data' in response) {
+          favsList = Array.isArray(response.data) ? response.data : []
+        }
+        
+        const favIds = new Set<string>(favsList.map((f: any) => f._id))
+        console.log("⭐ [GRID] IDs favoris:", Array.from(favIds))
+        setFavoriteIds(favIds)
+      } catch (err) {
+        console.error("❌ [GRID] Erreur chargement favoris:", err)
+      }
+    }
+
+    fetchFavorites()
   }, [token])
 
   const filteredAnnouncements = useMemo(() => {
@@ -175,14 +210,39 @@ export function AnnouncementsGrid({
     setHasSearched(true)
   }, [searchQuery])
 
-  const toggleLike = (id: string) => {
-    const newLiked = new Set(liked)
-    if (newLiked.has(id)) {
-      newLiked.delete(id)
-    } else {
-      newLiked.add(id)
+  const toggleFavorite = async (id: string) => {
+    if (!token) {
+      console.log("⭐ [GRID] Pas authentifié")
+      toast({ title: "Connectez-vous pour ajouter aux favoris" })
+      return
     }
-    setLiked(newLiked)
+
+    console.log("⭐ [GRID] Toggle favori:", id, "actuellement:", favoriteIds.has(id))
+
+    try {
+      if (favoriteIds.has(id)) {
+        // Remove
+        console.log("⭐ [GRID] Suppression du favori...")
+        await favoriteApi.remove(id, token)
+        setFavoriteIds((prev) => {
+          const newSet = new Set(prev)
+          newSet.delete(id)
+          return newSet
+        })
+        console.log("⭐ [GRID] Suppression réussie!")
+        showNotification("Retiré des favoris", "info")
+      } else {
+        // Add
+        console.log("⭐ [GRID] Ajout du favori...")
+        await favoriteApi.add(id, token)
+        setFavoriteIds((prev) => new Set([...prev, id]))
+        console.log("⭐ [GRID] Ajout réussi!")
+        showNotification("Ajouté aux favoris", "success")
+      }
+    } catch (err) {
+      console.error("❌ [GRID] Erreur toggle favori:", err)
+      showNotification(err instanceof Error ? err.message : "Impossible de modifier les favoris", "error")
+    }
   }
 
   const updateFilter = (key: keyof FilterState, value: any) => {
@@ -391,7 +451,7 @@ export function AnnouncementsGrid({
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {filteredAnnouncements.map((announcement) => {
-            const isLiked = liked.has(announcement._id)
+            const isFavorited = favoriteIds.has(announcement._id)
             const owner = announcement.owner || {}
             const userInitials = `${owner.firstName?.[0] ?? ""}${owner.lastName?.[0] ?? ""}`
 
@@ -415,13 +475,13 @@ export function AnnouncementsGrid({
                         onClick={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
-                          toggleLike(announcement._id)
+                          toggleFavorite(announcement._id)
                         }}
                         className="absolute top-3 right-3 bg-white/90 hover:bg-white rounded-full p-2 transition-all duration-200 hover:scale-110 shadow-lg"
                       >
                         <Heart
                           className={`size-5 transition-all duration-200 ${
-                            isLiked ? "fill-red-500 text-red-500" : "text-foreground/60"
+                            isFavorited ? "fill-rose-600 text-rose-600" : "text-foreground/60"
                           }`}
                         />
                       </button>

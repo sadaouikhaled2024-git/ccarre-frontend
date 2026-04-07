@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Edit, Trash2 } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 import { useAuth } from "@/contexts/auth-context"
 import { useEffect, useState } from "react"
 import { annonceApi, type Annonce } from "@/lib/annonce-api"
@@ -98,7 +99,21 @@ export default function MyAnnouncementsPage() {
             ) : announcements.length > 0 ? (
               announcements.map((announcement) => (
                 <div key={announcement._id} className="flex gap-4 rounded-lg border border-border p-4 hover:shadow-lg transition-shadow">
-                  <div className="h-24 w-24 shrink-0 rounded-lg bg-muted" />
+                  <div className="h-24 w-24 shrink-0 rounded-lg bg-muted overflow-hidden">
+                    {announcement.images && announcement.images[0] ? (
+                      <Image
+                        src={announcement.images[0]}
+                        alt={announcement.title}
+                        width={96}
+                        height={96}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-full w-full bg-muted flex items-center justify-center">
+                        <span className="text-xs text-muted-foreground">Pas d'image</span>
+                      </div>
+                    )}
+                  </div>
                   <div className="flex-1">
                     <h3 className="font-bold text-lg text-foreground">{announcement.title}</h3>
                     <p className="text-sm text-muted-foreground">{announcement.category}</p>
