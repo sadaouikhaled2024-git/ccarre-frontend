@@ -3,6 +3,7 @@
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import Link from "next/link"
+import Image from "next/image"
 import { Heart, X } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useEffect, useState } from "react"
@@ -10,7 +11,6 @@ import { favoriteApi } from "@/lib/favorite-api"
 import type { Annonce } from "@/lib/annonce-api"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import Image from "next/image"
 import { useToast } from "@/hooks/use-toast"
 
 export default function FavoritesPage() {

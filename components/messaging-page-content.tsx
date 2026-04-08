@@ -5,7 +5,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Search, Send, MoreVertical, ArrowLeft, ImageIcon, Paperclip, User, Trash2, Flag, Ban, X } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Search, Send, MoreVertical, ArrowLeft, ImageIcon, Paperclip, User, Trash2, Flag, Ban, X, AlertTriangle, AlertCircle } from "lucide-react"
+import { ReportModal } from "@/components/report-modal"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,6 +44,7 @@ interface Conversation {
     name: string
     avatar?: string
     isOnline: boolean
+    riskScore?: number
   }
   lastMessage?: string
   lastMessageTime?: Date
@@ -75,6 +78,40 @@ function getInitials(name: string): string {
     .toUpperCase()
 }
 
+function RiskBadge({ score }: { score?: number }) {
+  if (!score) return null
+  
+  if (score >= 80) {
+    return (
+      <Badge className="bg-destructive text-white gap-1 text-xs">
+        <AlertCircle className="h-3 w-3" />
+        Critique ({score})
+      </Badge>
+    )
+  } else if (score >= 50) {
+    return (
+      <Badge className="bg-yellow-600 text-white gap-1 text-xs">
+        <AlertCircle className="h-3 w-3" />
+        Risque ({score})
+      </Badge>
+    )
+  } else if (score >= 20) {
+    return (
+      <Badge className="bg-orange-600 text-white gap-1 text-xs">
+        <AlertCircle className="h-3 w-3" />
+        Moyen ({score})
+      </Badge>
+    )
+  }
+  
+  return (
+    <Badge className="bg-green-600 text-white gap-1 text-xs">
+      <AlertCircle className="h-3 w-3" />
+      Faible ({score})
+    </Badge>
+  )
+}
+
 export function MessagingPageContent() {
   const { token, user } = useAuth()
   const [echanges, setEchanges] = useState<Echange[]>([])
@@ -89,8 +126,12 @@ export function MessagingPageContent() {
   const [selectedImages, setSelectedImages] = useState<File[]>([])
   const [imagePreviews, setImagePreviews] = useState<string[]>([])
   const [blockedIds, setBlockedIds] = useState<string[]>([])
+  const [securityWarnings, setSecurityWarnings] = useState<string[]>([])
+  const [showSecurityAlert, setShowSecurityAlert] = useState(false)
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false)
   const [completeDialogEchangeId, setCompleteDialogEchangeId] = useState<string | null>(null)
+  const [showReportModal, setShowReportModal] = useState(false)
+  const [isReporting, setIsReporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -157,6 +198,36 @@ export function MessagingPageContent() {
       })
     }
   }, [token, toast])
+
+  const handleReportSubmit = async (reason: string, description: string) => {
+    if (!token || !selectedConversation?.participant?.id) {
+      toast({ title: "Erreur d'authentification" })
+      return
+    }
+
+    setIsReporting(true)
+    try {
+      const userId = selectedConversation.participant.id
+      console.log("[MESSAGING REPORT] Signaling user:", {
+        userId,
+        userIdType: typeof userId,
+        reason,
+        descriptionLength: description.length,
+      })
+
+      await reportApi.createUserReport(userId, reason, description, token)
+
+      console.log("[MESSAGING REPORT] Report sent successfully")
+      toast({ title: "Signalement envoyé avec succès" })
+      setShowReportModal(false)
+    } catch (err) {
+      console.error("[MESSAGING REPORT] Error:", err)
+      const errorMsg = err instanceof Error ? err.message : "Erreur inconnue"
+      throw new Error(errorMsg)
+    } finally {
+      setIsReporting(false)
+    }
+  }
 
   const handleCancelExchange = useCallback(async (echangeId: string) => {
     if (!token) return
@@ -238,6 +309,7 @@ export function MessagingPageContent() {
           name: `${counterpart?.firstName ?? ""} ${counterpart?.lastName ?? ""}`.trim() || "Utilisateur",
           avatar: counterpart?.profileImage,
           isOnline: false,
+          riskScore: (counterpart as any)?.riskScore,
         },
         lastMessage: lastMessageText,
         lastMessageTime: lastMessage?.timestamp || new Date(echange.updatedAt),
@@ -491,69 +563,35 @@ export function MessagingPageContent() {
           console.log("Is error empty object:", err && typeof err === 'object' && Object.keys(err).length === 0)
 
           if (err) {
-            console.error("❌ Message send error:", err)
-            
-            // If we get an empty error object, it likely means a backend issue
-            // Try REST API as fallback
-            if (err && typeof err === 'object' && Object.keys(err).length === 0) {
-              console.warn("⚠️ Backend returned empty error. Trying REST API fallback...")
-              messageApi.send(payload, token)
-                .then((response) => {
-                  console.log("✓ REST API fallback succeeded:", response)
-                  const created = (response.data as ApiMessage) || null
-                  if (created) {
-                    const normalized = mapApiMessage(created)
-                    setMessagesByEchange((prev) => {
-                      const existing = prev[selectedConversationId] ?? []
-                      return {
-                        ...prev,
-                        [selectedConversationId]: [...existing, normalized],
-                      }
-                    })
-                    setNewMessage("")
-                    setError(null)
-                    toast({ title: "Message envoyé (via REST)" })
-                  }
-                })
-                .catch((restErr) => {
-                  console.error("❌ REST API fallback also failed:", restErr)
-                  const errorMsg = (restErr as any)?.message || JSON.stringify(err) || "Server error"
-                  setError(`Failed to send message: ${errorMsg}`)
-                  toast({
-                    title: "Erreur d'envoi",
-                    description: errorMsg,
-                    variant: "destructive",
-                  })
-                })
-            } else {
-              const errorMsg = err?.message || JSON.stringify(err) || "Unknown error from server"
-              setError(`Failed to send message: ${errorMsg}`)
-              toast({
-                title: "Erreur d'envoi",
-                description: errorMsg,
-                variant: "destructive",
-              })
-            }
-          } else {
-            console.log("✓ Message sent successfully via WebSocket")
-            setNewMessage("")
-            setError(null)
-            toast({ title: "Message envoyé" })
+            setError(err.message)
           }
-          console.log("========== SOCKET CALLBACK END ==========")
         })
-        console.log("🟢 EMIT CALLED - Waiting for backend response...")
       } else {
-        console.log("⚠ Socket not connected, using REST API instead")
-        console.log("Socket details:", { socket: !!socket, connected: socket?.connected })
         try {
-          console.log("REST API - Sending payload:", payload)
-          const response = await messageApi.send(payload, token)
-          console.log("REST API - Response:", response)
-          const created = (response.data as ApiMessage) || null
+          // Utiliser messagerie sécurisée pour analyser les risques
+          const response = await messageApi.sendSecureMessage(payload, token)
+          const created = (response.data as any) || null
+          
+          // Afficher les avertissements de sécurité
+          if (response.warnings && response.warnings.length > 0) {
+            setSecurityWarnings(response.warnings)
+            setShowSecurityAlert(true)
+            toast({
+              title: " Alerte de sécurité",
+              description: response.warnings.join(", "),
+              variant: "destructive",
+            })
+          }
+          
           if (created) {
-            console.log("✓ Message created via REST API:", created)
-            const normalized = mapApiMessage(created)
+            const normalized = mapApiMessage({
+              _id: created._id,
+              echangeId: created.echangeId,
+              expediteur: created.sender,
+              contenu: created.content,
+              createdAt: created.createdAt,
+              updatedAt: created.createdAt,
+            } as ApiMessage)
             setMessagesByEchange((prev) => {
               const existing = prev[selectedConversationId] ?? []
               return {
@@ -561,21 +599,11 @@ export function MessagingPageContent() {
                 [selectedConversationId]: [...existing, normalized],
               }
             })
-            setNewMessage("")
-            setError(null)
-            toast({ title: "Message envoyé" })
           }
         } catch (err) {
-          console.error("❌ REST message send error:", err)
-          setError(err instanceof Error ? err.message : "Erreur d'envoi du message")
-          toast({
-            title: "Erreur REST",
-            description: err instanceof Error ? err.message : "Impossible d'envoyer le message",
-            variant: "destructive",
-          })
+          setError(err instanceof Error ? err.message : "Envoi du message impossible")
         }
       }
-      console.log("========== SENDING MESSAGE END ==========")
     }
 
     const sendImageMessage = async (file: File, preview: string) => {
@@ -627,12 +655,28 @@ export function MessagingPageContent() {
           })
         } else {
           console.log("⚠ Socket not connected, using REST API for image")
-          const response = await messageApi.send(payload, token)
+          const response = await messageApi.sendSecureMessage(payload, token)
           console.log("REST image response:", response)
-          const created = (response.data as ApiMessage) || null
+          const created = (response.data as any) || null
+          
+          // Afficher les avertissements pour les images aussi
+          if (response.warnings && response.warnings.length > 0) {
+            setSecurityWarnings(response.warnings)
+            setShowSecurityAlert(true)
+          }
+          
           if (created) {
             console.log("✓ Image message created via REST API")
-            updateMessageInEchange(selectedConversationId, tempId, mapApiMessage(created))
+            updateMessageInEchange(selectedConversationId, tempId, {
+              ...(mapApiMessage({
+                _id: created._id,
+                echangeId: created.echangeId,
+                expediteur: created.sender,
+                contenu: created.content,
+                createdAt: created.createdAt,
+                updatedAt: created.createdAt,
+              } as ApiMessage)),
+            })
           }
         }
       } catch (err) {
@@ -669,6 +713,27 @@ export function MessagingPageContent() {
     } catch (err) {
       console.error("❌ Handle send error:", err)
       setError(err instanceof Error ? err.message : "Envoi du message impossible")
+    }
+  }
+
+  const handleBlockUser = async () => {
+    if (!selectedConversation?.participant.id || !token) return
+    
+    try {
+      await messageApi.blockUser(selectedConversation.participant.id, token)
+      setBlockedIds([...blockedIds, selectedConversation.participant.id])
+      toast({
+        title: " Utilisateur bloqué",
+        description: `${selectedConversation.participant.name} a été bloqué`,
+      })
+      setShowMobileChat(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur lors du blocage")
+      toast({
+        title: "Erreur",
+        description: "Impossible de bloquer cet utilisateur",
+        variant: "destructive",
+      })
     }
   }
 
@@ -808,9 +873,14 @@ export function MessagingPageContent() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h2 className="font-semibold text-foreground truncate">
-                      {selectedConversation.participant.name}
-                    </h2>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="font-semibold text-foreground truncate">
+                        {selectedConversation.participant.name}
+                      </h2>
+                      {selectedConversation.participant.riskScore !== undefined && (
+                        <RiskBadge score={selectedConversation.participant.riskScore} />
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {selectedConversation.participant.isOnline ? "En ligne" : "Hors ligne"}
                     </p>
@@ -835,29 +905,19 @@ export function MessagingPageContent() {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="cursor-pointer text-orange-600"
-                        onClick={async () => {
-                          const reason = prompt("Expliquez la raison du signalement")
-                          if (!reason || !token) return
-                          try {
-                            await reportApi.create(
-                              {
-                                targetId: selectedConversation.participant.id,
-                                targetType: "USER",
-                                reason,
-                              },
-                              token,
-                            )
-                            toast({ title: "Signalement envoyé" })
-                          } catch (err) {
-                            toast({
-                              title: "Signalement impossible",
-                              description: err instanceof Error ? err.message : "Erreur",
+                        onClick={() => {
+                          if (selectedConversation?.participant?.id) {
+                            setShowReportModal(true)
+                          } else {
+                            toast({ 
+                              title: "Erreur", 
+                              description: "ID utilisateur manquant" 
                             })
                           }
                         }}
                       >
                         <Flag className="size-4 mr-2" />
-                        <span>Signaler</span>
+                        Signaler
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="cursor-pointer text-red-600"
@@ -972,6 +1032,27 @@ export function MessagingPageContent() {
                 {/* Messages */}
                 <div ref={scrollRef} className="flex-1 overflow-y-auto">
                   <div className="p-4 space-y-4">
+                    {showSecurityAlert && securityWarnings.length > 0 && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                        <div className="flex items-start gap-2">
+                          <Flag className="size-4 text-red-600 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-red-900 text-sm">⚠️ Alerte de sécurité</h4>
+                            <ul className="text-sm text-red-800 mt-1 space-y-1">
+                              {securityWarnings.map((warning, idx) => (
+                                <li key={idx}>• {warning}</li>
+                              ))}
+                            </ul>
+                          </div>
+                          <button
+                            onClick={() => setShowSecurityAlert(false)}
+                            className="text-red-600 hover:text-red-800 flex-shrink-0"
+                          >
+                            <X className="size-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {loadingMessages ? (
                       <p className="text-sm text-muted-foreground">Chargement des messages...</p>
                     ) : (
@@ -1069,6 +1150,59 @@ export function MessagingPageContent() {
                     const isAccepted = currentEchange?.statut === "ACCEPTE"
                     const isRefused = currentEchange?.statut === "REFUSE"
                     const isTerminated = currentEchange?.statut === "TERMINE"
+                    const isBlocked = blockedIds.includes(selectedConversation.participant.id)
+                    
+                    if (isBlocked) {
+                      // User is blocked
+                      return (
+                        <div className="bg-destructive/10 dark:bg-destructive/20 border border-destructive/30 dark:border-destructive/40 rounded-lg p-4 space-y-3">
+                          <div className="flex items-start gap-3">
+                            <Ban className="size-5 text-destructive flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="font-semibold text-destructive dark:text-destructive/90 text-sm">
+                                Utilisateur bloqué
+                              </p>
+                              <p className="text-sm text-destructive/80 dark:text-destructive/80 mt-1">
+                                {selectedConversation.participant.name} a été bloqué. Vous ne pouvez pas envoyer de messages à cet utilisateur.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={async () => {
+                                if (!token) return
+                                try {
+                                  await blockApi.unblock(selectedConversation.participant.id, token)
+                                  setBlockedIds((prev) => prev.filter((id) => id !== selectedConversation.participant.id))
+                                  toast({
+                                    title: "Utilisateur débloqué",
+                                    description: `${selectedConversation.participant.name} a été débloqué`,
+                                  })
+                                } catch (err) {
+                                  toast({
+                                    title: "Erreur",
+                                    description: err instanceof Error ? err.message : "Impossible de débloquer l'utilisateur",
+                                    variant: "destructive",
+                                  })
+                                }
+                              }}
+                              className="text-destructive border-destructive/30 hover:bg-destructive/10 flex-1"
+                            >
+                              Débloquer
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-destructive border-destructive/30 hover:bg-destructive/10 flex-1"
+                            >
+                              Besoin d'aide ?
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    }
                     
                     if (isTerminated) {
                       // Échange terminé - bloqué
@@ -1280,6 +1414,16 @@ export function MessagingPageContent() {
             onConfirm={handleCompleteExchangeConfirm}
           />
         )}
+
+        {/* Report Modal */}
+        <ReportModal
+          isOpen={showReportModal}
+          onClose={() => setShowReportModal(false)}
+          onSubmit={handleReportSubmit}
+          targetType="user"
+          targetName={selectedConversation?.participant?.name || "Utilisateur"}
+          isLoading={isReporting}
+        />
       </div>
     </div>
   )

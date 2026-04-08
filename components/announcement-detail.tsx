@@ -4,6 +4,7 @@ import Image from "next/image"
 import { Card } from "@/components/ui/card"
 import { useState, useEffect } from "react"
 import { InterestedModal } from "@/components/interested-modal"
+import { ReportModal } from "@/components/report-modal"
 import { ChevronLeft, ChevronRight, Flag, Trash2, Heart, MoreVertical } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { annonceApi } from "@/lib/annonce-api"
@@ -31,6 +32,8 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isFavorite, setIsFavorite] = useState(false)
   const [favoriteLoading, setFavoriteLoading] = useState(false)
+  const [showReportModal, setShowReportModal] = useState(false)
+  const [isReporting, setIsReporting] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -124,18 +127,39 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
     }
   }
 
-  const handleReport = async () => {
+  const handleReport = () => {
     if (!token || !announcement?._id) {
       toast({ title: "Connectez-vous pour signaler" })
       return
     }
-    const reason = prompt("Expliquez la raison du signalement")
-    if (!reason) return
+    setShowReportModal(true)
+  }
+
+  const handleReportSubmit = async (reason: string, description: string) => {
+    if (!token || !announcement?._id) {
+      toast({ title: "Erreur d'authentification" })
+      return
+    }
+
+    setIsReporting(true)
     try {
-      await reportApi.create({ targetId: announcement._id, targetType: "ANNONCE", reason }, token)
-      toast({ title: "Signalement envoyé" })
+      console.log("[REPORT] Envoi du signalement:", {
+        announcementId: announcement._id,
+        reason,
+        descriptionLength: description.length,
+      })
+
+      await reportApi.createAnnonceReport(announcement._id, reason, description, token)
+
+      console.log("[REPORT] Signalement réussi")
+      toast({ title: "Signalement envoyé avec succès" })
+      setShowReportModal(false)
     } catch (err) {
-      toast({ title: "Signalement impossible", description: err instanceof Error ? err.message : "Erreur" })
+      console.error("[REPORT] Erreur lors du signalement:", err)
+      const errorMsg = err instanceof Error ? err.message : "Erreur inconnue"
+      throw new Error(errorMsg)
+    } finally {
+      setIsReporting(false)
     }
   }
 
@@ -179,8 +203,8 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
     <div className="space-y-8">
       <div className="grid gap-8 lg:grid-cols-3">
         {/* Image Gallery */}
-        <div className="lg:col-span-2 space-y-4">
-          <Card className="overflow-hidden bg-muted aspect-video relative">
+        <div className="lg:col-span-2 space-y-2">
+          <Card className="overflow-hidden bg-muted aspect-square relative">
             <Image
               src={currentImage}
               alt={`${announcement.title} - Photo ${currentImageIndex + 1}`}
@@ -325,6 +349,15 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
           </div>
         )}
       </Card>
+
+      <ReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        onSubmit={handleReportSubmit}
+        targetType="annonce"
+        targetName={announcement?.title}
+        isLoading={isReporting}
+      />
     </div>
   )
 }

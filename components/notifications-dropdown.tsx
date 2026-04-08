@@ -99,20 +99,6 @@ const getNotifierFullName = (notification: Notification): string => {
   return fullName || notification.senderName || ""
 }
 
-const groupMessagesBySender = (notifications: Notification[]) => {
-  const grouped: Record<string, Notification[]> = {}
-  notifications.forEach((notif) => {
-    const key = getNotifierFullName(notif)
-    if (!grouped[key]) {
-      grouped[key] = []
-    }
-    grouped[key].push(notif)
-  })
-  return Object.entries(grouped).sort((a, b) => 
-    (b[1][0]?.createdAt || "").localeCompare(a[1][0]?.createdAt || "")
-  )
-}
-
 export function NotificationsDropdown() {
   const { token } = useAuth()
   const [notifications, setNotifications] = useState<Notification[]>([])
@@ -235,6 +221,7 @@ export function NotificationsDropdown() {
   }
 
   const unreadCount = notifications.filter((n) => !n.read).length
+  const displayNotifications = notifications.slice(0, 5)
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -275,153 +262,72 @@ export function NotificationsDropdown() {
           <>
             <ScrollArea className="h-96">
               <div className="px-2 py-2">
-                {(() => {
-                  // Separate and group messages from ALL notifications (not just first 5)
-                  const messageNotifs = notifications.filter(n => n.type === "MESSAGE")
-                  const otherNotifs = notifications.filter(n => n.type !== "MESSAGE")
-                  const groupedMessages = groupMessagesBySender(messageNotifs)
+                {displayNotifications.map((notification) => {
+                  const link = getNotificationLink(notification)
+                  const backgroundColor = getNotificationColor(notification.type)
+                  const icon = getNotificationIcon(notification.type)
+                  const typeLabel = getNotificationTypeLabel(notification.type)
+                  const notifierName = getNotifierFullName(notification)
                   
-                  // Combine grouped messages with other notifications and limit display to 5 items
-                  const displayItems: (any)[] = [
-                    ...groupedMessages.map(([senderName, messages]) => ({
-                      type: "group",
-                      senderName,
-                      messages,
-                    })),
-                    ...otherNotifs.map(notif => ({
-                      type: "single",
-                      notification: notif,
-                    })),
-                  ]
-                  // Sort by most recent first
-                  .sort((a, b) => {
-                    const aDate = a.type === "group" ? a.messages[0]?.createdAt : a.notification.createdAt
-                    const bDate = b.type === "group" ? b.messages[0]?.createdAt : b.notification.createdAt
-                    return new Date(bDate).getTime() - new Date(aDate).getTime()
-                  })
-                  .slice(0, 5)
+                  // Try to extract content from various possible fields
+                  const content = 
+                    notification.contenu || 
+                    notification.title || 
+                    notification.description || 
+                    notification.message ||
+                    "Notification"
 
                   return (
-                    <>
-                      {displayItems.map((item) => {
-                        if (item.type === "group") {
-                          const { senderName, messages } = item
-                          const unreadCount = messages.filter((m: any) => !m.read).length
-                          const firstMessage = messages[0]
-                          return (
-                            <Link
-                              key={senderName}
-                              href={
-                                firstMessage.relatedMessage
-                                  ? `/messagerie?conversationId=${firstMessage.relatedMessage}`
-                                  : "#"
-                              }
-                            >
-                              <div
-                                className={`mb-2 p-3 rounded-lg border cursor-pointer transition-colors bg-[#B44362]/10 border-[#B44362]/20 hover:opacity-80`}
-                                onClick={() => {
-                                  messages.forEach((msg: any) => {
-                                    if (!msg.read) {
-                                      handleMarkAsRead(msg._id)
-                                    }
-                                  })
-                                  setOpen(false)
-                                }}
-                              >
-                                <div className="flex gap-2">
-                                  <div className="flex-shrink-0 mt-1 text-[#B44362]">
-                                    <MessageSquare className="h-4 w-4" />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <p className="text-sm font-medium text-[#1F0C11]">
-                                        {messages.length} message{messages.length !== 1 ? "s" : ""} de
-                                      </p>
-                                      <span className="font-bold text-[#B44362]">{senderName}</span>
-                                      {unreadCount > 0 && (
-                                        <div className="h-2 w-2 rounded-full bg-[#FF7F50] flex-shrink-0" />
-                                      )}
-                                    </div>
-                                    <span className="text-xs text-[#1F0C11]/50 block mt-1">
-                                      {new Date(firstMessage.createdAt).toLocaleDateString("fr-FR", {
-                                        month: "short",
-                                        day: "numeric",
-                                      })}
-                                    </span>
-                                  </div>
-                                </div>
+                    <Link key={notification._id} href={link}>
+                      <div
+                        className={`mb-2 p-3 rounded-lg border cursor-pointer transition-colors ${backgroundColor} hover:opacity-80`}
+                        onClick={() => {
+                          if (!notification.read) {
+                            handleMarkAsRead(notification._id)
+                          }
+                          setOpen(false)
+                        }}
+                      >
+                        <div className="flex gap-2">
+                          <div className="flex-shrink-0 mt-1 text-[#B44362]">
+                            {icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-[#1F0C11]">
+                                  {content}
+                                </p>
+                                {notifierName && (
+                                  <p className="text-xs text-[#1F0C11]/60 mt-1">
+                                    De <span className="font-medium text-[#B44362]">{notifierName}</span>
+                                  </p>
+                                )}
                               </div>
-                            </Link>
-                          )
-                        } else {
-                          const notification = item.notification
-                          const link = getNotificationLink(notification)
-                          const backgroundColor = getNotificationColor(notification.type)
-                          const icon = getNotificationIcon(notification.type)
-                          const typeLabel = getNotificationTypeLabel(notification.type)
-                          const notifierName = getNotifierFullName(notification)
-                          const content =
-                            notification.contenu ||
-                            notification.title ||
-                            notification.description ||
-                            notification.message ||
-                            "Notification"
-
-                          return (
-                            <Link key={notification._id} href={link}>
-                              <div
-                                className={`mb-2 p-3 rounded-lg border cursor-pointer transition-colors ${backgroundColor} hover:opacity-80`}
-                                onClick={() => {
-                                  if (!notification.read) {
-                                    handleMarkAsRead(notification._id)
-                                  }
-                                  setOpen(false)
-                                }}
+                              {!notification.read && (
+                                <div className="h-2 w-2 rounded-full bg-[#FF7F50] flex-shrink-0 mt-1.5" />
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between mt-2">
+                              <Badge
+                                variant="outline"
+                                className="text-xs border-[#B44362]/30 text-[#B44362]"
                               >
-                                <div className="flex gap-2">
-                                  <div className="flex-shrink-0 mt-1 text-[#B44362]">
-                                    {icon}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-start justify-between gap-2">
-                                      <div className="flex-1">
-                                        <p className="text-sm font-medium text-[#1F0C11]">
-                                          {content}
-                                        </p>
-                                        {notifierName && (
-                                          <p className="text-xs text-[#1F0C11]/60 mt-1">
-                                            De <span className="font-medium text-[#B44362]">{notifierName}</span>
-                                          </p>
-                                        )}
-                                      </div>
-                                      {!notification.read && (
-                                        <div className="h-2 w-2 rounded-full bg-[#FF7F50] flex-shrink-0 mt-1.5" />
-                                      )}
-                                    </div>
-                                    <div className="flex items-center justify-between mt-2">
-                                      <Badge
-                                        variant="outline"
-                                        className="text-xs border-[#B44362]/30 text-[#B44362]"
-                                      >
-                                        {typeLabel}
-                                      </Badge>
-                                      <span className="text-xs text-[#1F0C11]/50">
-                                        {new Date(notification.createdAt).toLocaleDateString("fr-FR", {
-                                          month: "short",
-                                          day: "numeric",
-                                        })}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </Link>
-                          )
-                        }
-                      })}
-                    </>
+                                {typeLabel}
+                              </Badge>
+                              <span className="text-xs text-[#1F0C11]/50">
+                                {new Date(notification.createdAt).toLocaleDateString("fr-FR", {
+                                  month: "short",
+                                  day: "numeric",
+                                })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
                   )
-                })()}
+                })}
               </div>
             </ScrollArea>
 

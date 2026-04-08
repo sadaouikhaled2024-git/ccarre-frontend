@@ -11,6 +11,7 @@ export default function AnnouncementsPage() {
   const { isAuthenticated, loading } = useAuth()
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
+  const [filters, setFilters] = useState<any>({})
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -22,7 +23,12 @@ export default function AnnouncementsPage() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <Navbar onSearchChange={setSearchQuery} />
+      <Navbar 
+        onSearchChange={(query, searchFilters) => {
+          setSearchQuery(query)
+          setFilters(searchFilters || {})
+        }} 
+      />
       <main className="flex-1 py-12">
         <div className="mx-auto max-w-6xl px-6">
           <div className="mb-8">

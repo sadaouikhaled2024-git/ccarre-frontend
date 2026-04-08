@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { User, Mail, GraduationCap, Calendar, MapPin, Package, Edit, Plus } from "lucide-react"
+import { User, Mail, GraduationCap, Calendar, MapPin, Package, Edit, Plus, AlertTriangle, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -88,7 +88,21 @@ export default function ProfilePage() {
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 text-center md:text-left">
-                  <h1 className="text-2xl font-bold text-foreground">{`${user?.firstName ?? ""} ${user?.lastName ?? ""}`}</h1>
+                  <div className="flex items-center gap-2 justify-center md:justify-start flex-wrap">
+                    <h1 className="text-2xl font-bold text-foreground">{`${user?.firstName ?? ""} ${user?.lastName ?? ""}`}</h1>
+                    {(user as any)?.reportCount > 0 && (
+                      <Badge className="bg-destructive text-white gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        Signalé
+                      </Badge>
+                    )}
+                    {(user as any)?.riskScore && (user as any)?.riskScore >= 50 && (
+                      <Badge className={`gap-1 ${(user as any)?.riskScore >= 80 ? 'bg-destructive text-white' : 'bg-yellow-600 text-white'}`}>
+                        <AlertCircle className="h-3 w-3" />
+                        Risque élevé
+                      </Badge>
+                    )}
+                  </div>
                   <div className="mt-3 flex flex-col gap-2">
                     <div className="flex items-center justify-center gap-2 text-muted-foreground md:justify-start">
                       <Mail className="size-4" />

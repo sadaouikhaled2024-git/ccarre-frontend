@@ -20,9 +20,9 @@ export function Footer() {
             Politique de confidentialité
           </Link>
           <span className="text-border/50">•</span>
-          <a href="mailto:contact@ccarre.local" className="hover:text-primary transition-colors">
+          <Link href="/contact" className="hover:text-primary transition-colors">
             Contact
-          </a>
+          </Link>
         </div>
 
         <p className="text-xs text-muted-foreground/70 text-center">

@@ -5,7 +5,7 @@ import Image from "next/image"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Heart, ChevronDown } from "lucide-react"
+import { Heart, ChevronDown, AlertTriangle, AlertCircle } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from "@/contexts/auth-context"
@@ -486,11 +486,23 @@ export function AnnouncementsGrid({
                         />
                       </button>
 
-                      {/* Category Badge */}
-                      <div className="absolute bottom-3 left-3">
+                      {/* Status Badges */}
+                      <div className="absolute bottom-3 left-3 flex flex-col gap-1">
                         <Badge className={`${categoryColors[announcement.category?.toLowerCase()] || "bg-gray-100 text-gray-800"} text-xs font-semibold`}>
                           {announcement.category}
                         </Badge>
+                        {announcement.reportCount > 0 && (
+                          <Badge className="bg-destructive text-white text-xs gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            Signalé({announcement.reportCount})
+                          </Badge>
+                        )}
+                        {announcement.riskScore && announcement.riskScore >= 50 && (
+                          <Badge className={`text-xs gap-1 ${announcement.riskScore >= 80 ? 'bg-destructive text-white' : 'bg-yellow-600 text-white'}`}>
+                            <AlertCircle className="h-3 w-3" />
+                            {announcement.riskScore >= 80 ? 'Critique' : 'Risque'}
+                          </Badge>
+                        )}
                       </div>
                     </div>
 

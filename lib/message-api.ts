@@ -30,6 +30,51 @@ export interface UploadImageResponse {
   url: string
 }
 
+export interface SecureMessagePayload {
+  echangeId: string
+  contenu: string
+}
+
+export interface SecureMessage {
+  _id: string
+  echangeId: string
+  sender: {
+    _id: string
+    firstName: string
+    lastName: string
+    email: string
+  }
+  content: string
+  securityAnalysis?: {
+    hasScamKeywords: boolean
+    hasPhoneNumbers: boolean
+    hasEmails: boolean
+    hasExternalLinks: boolean
+    isSuspicious: boolean
+    riskScore: number
+    warnings?: string[]
+  }
+  createdAt: string
+}
+
+export interface BlockedUser {
+  _id: string
+  blockedUser: {
+    _id: string
+    firstName: string
+    lastName: string
+    email: string
+  }
+  createdAt: string
+}
+
+export interface SecureMessageResponse {
+  success: boolean
+  data?: SecureMessage | SecureMessage[] | BlockedUser[]
+  message?: string
+  warnings?: string[]
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}, token: string): Promise<T> {
   const res = await fetch(`${API_URL}${endpoint}`, {
     ...options,
@@ -84,5 +129,64 @@ export const messageApi = {
     }
 
     return data as UploadImageResponse
+  },
+
+  /* ─────────────────────────────────────
+     MESSAGERIE SÉCURISÉE
+     ───────────────────────────────────── */
+
+  sendSecureMessage(payload: SecureMessagePayload, token: string) {
+    return request<SecureMessageResponse>(
+      "/api/secure-messages",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+      token,
+    )
+  },
+
+  getSecureMessages(echangeId: string, token: string) {
+    return request<SecureMessageResponse>(
+      `/api/secure-messages/${echangeId}`,
+      { method: "GET" },
+      token,
+    )
+  },
+
+  deleteSecureMessage(messageId: string, token: string) {
+    return request<SecureMessageResponse>(
+      `/api/secure-messages/${messageId}`,
+      { method: "DELETE" },
+      token,
+    )
+  },
+
+  /* ─────────────────────────────────────
+     BLOCAGE D'UTILISATEURS
+     ───────────────────────────────────── */
+
+  blockUser(targetUserId: string, token: string) {
+    return request<SecureMessageResponse>(
+      `/api/secure-messages/block/${targetUserId}`,
+      { method: "POST" },
+      token,
+    )
+  },
+
+  unblockUser(blockId: string, token: string) {
+    return request<SecureMessageResponse>(
+      `/api/secure-messages/block/${blockId}`,
+      { method: "DELETE" },
+      token,
+    )
+  },
+
+  getBlockedUsers(token: string) {
+    return request<SecureMessageResponse>(
+      "/api/secure-messages/blocks/list",
+      { method: "GET" },
+      token,
+    )
   },
 }

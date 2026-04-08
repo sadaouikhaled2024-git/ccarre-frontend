@@ -28,7 +28,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { SearchBar } from "@/components/search-bar"
 import { NotificationsDropdown } from "@/components/notifications-dropdown"
 
-export function Navbar({ onSearchChange }: { onSearchChange?: (query: string) => void } = {}) {
+export function Navbar({ onSearchChange }: { onSearchChange?: (query: string, filters?: any) => void } = {}) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { isAuthenticated, user, logout } = useAuth()
   const router = useRouter()
@@ -55,7 +55,7 @@ export function Navbar({ onSearchChange }: { onSearchChange?: (query: string) =>
           {/* Search Bar - show for authenticated users */}
           {isAuthenticated && (
             <div className="flex-1 flex justify-center">
-              <SearchBar onSearch={onSearchChange} />
+              <SearchBar />
             </div>
           )}
 

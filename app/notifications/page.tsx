@@ -303,7 +303,7 @@ export default function NotificationsPage() {
               </TabsList>
 
               {notificationTypes.map((type) => (
-                <TabsContent key={type} value={type} className="mt-6 pt-6 space-y-4">
+                <TabsContent key={type} value={type} className="mt-6 space-y-4">
                   {type === "MESSAGE" ? (
                     <GroupedMessages
                       notifications={groupedByType[type]}
@@ -410,6 +410,18 @@ function NotificationCard({ notification, onMarkAsRead, onDelete }: Notification
               </div>
             </div>
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-[#1F0C11]/50 hover:text-[#B44362] hover:bg-[#B44362]/5 flex-shrink-0"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onDelete(notification._id)
+            }}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
       </Card>
     </Link>

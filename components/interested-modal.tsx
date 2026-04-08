@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Heart } from "lucide-react"
 import { echangeApi } from "@/lib/echange-api"
+import { messageApi } from "@/lib/message-api"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 
@@ -59,9 +60,17 @@ export function InterestedModal({
         throw new Error("Vous devez être connecté pour envoyer un message")
       }
 
-      const payload = message || getDefaultMessage()
-      const response = await echangeApi.create(announcementId, token, payload)
-      const echangeId = (response.data as any)?._id
+      const payload = message.trim() || getDefaultMessage()
+      const echangeResponse = await echangeApi.create(announcementId, token)
+      const data = echangeResponse.data
+      const echangeId =
+        data && !Array.isArray(data) && "_id" in data && typeof data._id === "string" ? data._id : null
+
+      if (!echangeId) {
+        throw new Error("Impossible d'ouvrir la conversation")
+      }
+
+      await messageApi.send({ echangeId, contenu: payload }, token)
 
       if (!echangeId) {
         throw new Error("Impossible de créer l'échange")
