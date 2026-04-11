@@ -491,12 +491,6 @@ export function AnnouncementsGrid({
                         <Badge className={`${categoryColors[announcement.category?.toLowerCase()] || "bg-gray-100 text-gray-800"} text-xs font-semibold`}>
                           {announcement.category}
                         </Badge>
-                        {announcement.reportCount > 0 && (
-                          <Badge className="bg-destructive text-white text-xs gap-1">
-                            <AlertTriangle className="h-3 w-3" />
-                            Signalé({announcement.reportCount})
-                          </Badge>
-                        )}
                         {announcement.riskScore && announcement.riskScore >= 50 && (
                           <Badge className={`text-xs gap-1 ${announcement.riskScore >= 80 ? 'bg-destructive text-white' : 'bg-yellow-600 text-white'}`}>
                             <AlertCircle className="h-3 w-3" />
@@ -530,7 +524,7 @@ export function AnnouncementsGrid({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8 border border-border">
-                            <AvatarImage src={owner.profileImage as string | undefined} alt={`${owner.firstName} ${owner.lastName}`} />
+                            <AvatarImage src={owner.profilePhoto as string | undefined} alt={`${owner.firstName} ${owner.lastName}`} />
                             <AvatarFallback className="bg-primary/20 text-xs font-semibold">
                               {userInitials}
                             </AvatarFallback>

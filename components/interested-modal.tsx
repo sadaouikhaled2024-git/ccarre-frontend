@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Heart } from "lucide-react"
 import { echangeApi } from "@/lib/echange-api"
-import { messageApi } from "@/lib/message-api"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 
@@ -22,6 +21,7 @@ interface InterestedModalProps {
   announcementId: string
   announcementTitle: string
   announcementType: "vente" | "échange" | "prêt"
+  ownerId: string
   ownerName: string
 }
 
@@ -29,6 +29,7 @@ export function InterestedModal({
   announcementId,
   announcementTitle,
   announcementType,
+  ownerId,
   ownerName,
 }: InterestedModalProps) {
   const { token } = useAuth()
@@ -59,29 +60,22 @@ export function InterestedModal({
       if (!token) {
         throw new Error("Vous devez être connecté pour envoyer un message")
       }
+      if (!announcementId) {
+        throw new Error("L'ID de l'annonce est requis")
+      }
+      if (!ownerId) {
+        throw new Error("L'ID du propriétaire est requis")
+      }
 
       const payload = message.trim() || getDefaultMessage()
-      const echangeResponse = await echangeApi.create(announcementId, token)
-      const data = echangeResponse.data
-      const echangeId =
-        data && !Array.isArray(data) && "_id" in data && typeof data._id === "string" ? data._id : null
-
-      if (!echangeId) {
-        throw new Error("Impossible d'ouvrir la conversation")
-      }
-
-      await messageApi.send({ echangeId, contenu: payload }, token)
-
-      if (!echangeId) {
-        throw new Error("Impossible de créer l'échange")
-      }
+      await echangeApi.create(ownerId, announcementId, token, payload)
 
       toast({ title: "Échange créé avec succès!", description: "Redirection vers la messagerie..." })
       setOpen(false)
       setMessage("")
       
-      // Redirect to messaging page with the new exchange
-      router.push(`/messagerie/${echangeId}`)
+      // Redirect to messaging page with the announcement owner (requested behavior)
+      router.push(`/messages/${ownerId}`)
     } catch (error) {
       setError(error instanceof Error ? error.message : "Impossible de créer l'échange")
     } finally {

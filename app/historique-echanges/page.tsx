@@ -14,13 +14,18 @@ import Image from "next/image"
 import { CompleteExchangeDialog } from "@/components/complete-exchange-dialog"
 
 export default function ExchangeHistoryPage() {
-  const { token, user } = useAuth()
+  const { token: contextToken, user } = useAuth()
+  const token =
+    contextToken ||
+    (typeof window !== "undefined" ? window.localStorage.getItem("ccarre_token") : null)
   const [exchanges, setExchanges] = useState<Echange[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false)
   const [completeDialogEchangeId, setCompleteDialogEchangeId] = useState<string | null>(null)
   const { toast } = useToast()
+
+  const normalizeStatus = (status?: string) => String(status || "").toLowerCase()
 
   useEffect(() => {
     if (!token) return
@@ -29,9 +34,17 @@ export default function ExchangeHistoryPage() {
       try {
         setLoading(true)
         setError(null)
-        const response = await echangeApi.getHistory(token)
-        const data = response.data as { ongoing: Echange[]; completed: Echange[] }
-        const allExchanges = [...(data?.ongoing || []), ...(data?.completed || [])]
+        const response = await echangeApi.getAll(token)
+        const rawData = response.data as any
+        const allExchanges: Echange[] = Array.isArray(rawData)
+          ? rawData
+          : Array.isArray(rawData?.echanges)
+            ? rawData.echanges
+            : rawData?.ongoing || rawData?.completed
+              ? [...(rawData?.ongoing || []), ...(rawData?.completed || [])]
+              : rawData?.echange
+                ? [rawData.echange]
+                : []
         setExchanges(allExchanges)
       } catch (err) {
         setError(err instanceof Error ? err.message : "Impossible de charger l'historique")
@@ -48,7 +61,7 @@ export default function ExchangeHistoryPage() {
     try {
       await echangeApi.accept(echangeId, token)
       setExchanges((prev) =>
-        prev.map((e) => (e._id === echangeId ? { ...e, statut: "ACCEPTE" } : e))
+        prev.map((e) => (e._id === echangeId ? { ...e, statut: "accepte" as any } : e))
       )
       toast({ title: "Échange accepté!" })
     } catch (err) {
@@ -64,7 +77,7 @@ export default function ExchangeHistoryPage() {
     try {
       await echangeApi.refuse(echangeId, token)
       setExchanges((prev) =>
-        prev.map((e) => (e._id === echangeId ? { ...e, statut: "REFUSE" } : e))
+        prev.map((e) => (e._id === echangeId ? { ...e, statut: "refuse" as any } : e))
       )
       toast({ title: "Échange refusé" })
     } catch (err) {
@@ -88,7 +101,7 @@ export default function ExchangeHistoryPage() {
         setExchanges((prev) =>
           prev.map((e) =>
             e._id === completeDialogEchangeId
-              ? { ...e, statut: "TERMINE" as any, lieuEchange, prixFinal }
+              ? { ...e, statut: "termine" as any, lieuEchange, prixFinal }
               : e,
           ),
         )
@@ -110,7 +123,7 @@ export default function ExchangeHistoryPage() {
     try {
       await echangeApi.cancel(echangeId, token)
       setExchanges((prev) =>
-        prev.map((e) => (e._id === echangeId ? { ...e, statut: "ANNULE" as any } : e))
+        prev.map((e) => (e._id === echangeId ? { ...e, statut: "annule" as any } : e))
       )
       toast({ title: "Échange annulé" })
     } catch (err) {
@@ -123,53 +136,77 @@ export default function ExchangeHistoryPage() {
 
   const groupedExchanges = useMemo(() => {
     return {
-      EN_ATTENTE: exchanges.filter((e) => e.statut === "EN_ATTENTE"),
-      ACCEPTE: exchanges.filter((e) => e.statut === "ACCEPTE"),
-      REFUSE: exchanges.filter((e) => e.statut === "REFUSE"),
-      TERMINE: exchanges.filter((e) => e.statut === "TERMINE"),
+      EN_ATTENTE: exchanges.filter((e) => normalizeStatus((e as any).statut) === "en_attente"),
+      DISCUSSION: exchanges.filter((e) => normalizeStatus((e as any).statut) === "discussion"),
+      ACCEPTE: exchanges.filter((e) => {
+        const s = normalizeStatus((e as any).statut)
+        return s === "accepte" || s === "rendez_vous_propose" || s === "rendez_vous_accepte"
+      }),
+      REFUSE: exchanges.filter((e) => normalizeStatus((e as any).statut) === "refuse"),
+      TERMINE: exchanges.filter((e) => normalizeStatus((e as any).statut) === "termine" || normalizeStatus((e as any).statut) === "valide"),
+      ANNULE: exchanges.filter((e) => normalizeStatus((e as any).statut) === "annule"),
     }
   }, [exchanges])
 
-  const getStatusColor = (status: EchangeStatus) => {
-    switch (status) {
-      case "EN_ATTENTE":
+  const getStatusColor = (status: string) => {
+    switch (normalizeStatus(status)) {
+      case "en_attente":
         return "bg-orange-100 text-orange-800 border-orange-200"
-      case "ACCEPTE":
-        return "bg-[#EC7578]/10 text-[#EC7578] border-[#EC7578]/20"
-      case "TERMINE":
-        return "bg-slate-100 text-slate-800 border-slate-200"
-      case "REFUSE":
+      case "discussion":
         return "bg-rose-100 text-rose-800 border-rose-200"
+      case "accepte":
+      case "rendez_vous_propose":
+      case "rendez_vous_accepte":
+        return "bg-[#EC7578]/10 text-[#EC7578] border-[#EC7578]/20"
+      case "termine":
+      case "valide":
+        return "bg-slate-100 text-slate-800 border-slate-200"
+      case "refuse":
+        return "bg-rose-100 text-rose-800 border-rose-200"
+      case "annule":
+        return "bg-zinc-100 text-zinc-800 border-zinc-200"
       default:
         return "bg-muted text-foreground"
     }
   }
 
-  const getStatusIcon = (status: EchangeStatus) => {
-    switch (status) {
-      case "EN_ATTENTE":
+  const getStatusIcon = (status: string) => {
+    switch (normalizeStatus(status)) {
+      case "en_attente":
         return <AlertCircle className="size-5 text-orange-600" />
-      case "ACCEPTE":
+      case "discussion":
+        return <Clock className="size-5 text-rose-600" />
+      case "accepte":
+      case "rendez_vous_propose":
+      case "rendez_vous_accepte":
         return <Check className="size-5 text-[#EC7578]" />
-      case "TERMINE":
+      case "termine":
+      case "valide":
         return <CheckCircle2 className="size-5 text-slate-600" />
-      case "REFUSE":
+      case "refuse":
         return <X className="size-5 text-rose-600" />
       default:
         return null
     }
   }
 
-  const getStatusLabel = (status: EchangeStatus) => {
-    switch (status) {
-      case "EN_ATTENTE":
+  const getStatusLabel = (status: string) => {
+    switch (normalizeStatus(status)) {
+      case "en_attente":
         return "En attente"
-      case "ACCEPTE":
+      case "discussion":
+        return "Discussion"
+      case "accepte":
+      case "rendez_vous_propose":
+      case "rendez_vous_accepte":
         return "Accepté"
-      case "TERMINE":
+      case "termine":
+      case "valide":
         return "Terminé"
-      case "REFUSE":
+      case "refuse":
         return "Refusé"
+      case "annule":
+        return "Annulé"
       default:
         return status
     }
@@ -225,7 +262,7 @@ export default function ExchangeHistoryPage() {
           </div>
 
           {/* Détails de l'échange finalisé */}
-          {exchange.statut === "TERMINE" && (
+          {(normalizeStatus((exchange as any).statut) === "termine" || normalizeStatus((exchange as any).statut) === "valide") && (
             <div className="mt-3 pt-3 border-t border-rose-200 space-y-1">
               {exchange.lieuEchange && (
                 <p className="text-xs text-slate-600 dark:text-slate-400">
@@ -247,7 +284,7 @@ export default function ExchangeHistoryPage() {
 
         {/* Actions */}
         <div className="flex flex-col gap-2 justify-center flex-shrink-0">
-          {exchange.statut === "EN_ATTENTE" && isOwner(exchange) && (
+          {normalizeStatus((exchange as any).statut) === "en_attente" && isOwner(exchange) && (
             <>
               <Button
                 size="sm"
@@ -268,7 +305,12 @@ export default function ExchangeHistoryPage() {
               </Button>
             </>
           )}
-          {exchange.statut === "ACCEPTE" && (
+          {[
+            "accepte",
+            "discussion",
+            "rendez_vous_propose",
+            "rendez_vous_accepte",
+          ].includes(normalizeStatus((exchange as any).statut)) && (
             <>
               <Button
                 size="sm"
@@ -294,7 +336,7 @@ export default function ExchangeHistoryPage() {
     </div>
   )
 
-  const Section = ({ status, title, exchanges: sectionExchanges }: { status: EchangeStatus; title: string; exchanges: Echange[] }) => (
+  const Section = ({ status, title, exchanges: sectionExchanges }: { status: string; title: string; exchanges: Echange[] }) => (
     <div className="space-y-4">
       <div className="flex items-center gap-3 mb-6">
         {getStatusIcon(status)}
@@ -340,6 +382,13 @@ export default function ExchangeHistoryPage() {
                   exchanges={groupedExchanges.EN_ATTENTE}
                 />
               )}
+              {groupedExchanges.DISCUSSION.length > 0 && (
+                <Section
+                  status="discussion"
+                  title="Discussion"
+                  exchanges={groupedExchanges.DISCUSSION}
+                />
+              )}
               {groupedExchanges.ACCEPTE.length > 0 && (
                 <Section
                   status="ACCEPTE"
@@ -359,6 +408,13 @@ export default function ExchangeHistoryPage() {
                   status="TERMINE"
                   title="Terminé"
                   exchanges={groupedExchanges.TERMINE}
+                />
+              )}
+              {groupedExchanges.ANNULE.length > 0 && (
+                <Section
+                  status="annule"
+                  title="Annulé"
+                  exchanges={groupedExchanges.ANNULE}
                 />
               )}
             </div>

@@ -7,14 +7,25 @@ export interface MessagePayload {
 
 export interface Message {
   _id: string
-  echangeId: string
-  expediteur: {
+  echangeId?: string
+  echange?: string
+  expediteur?: {
     _id: string
     firstName?: string
     lastName?: string
     email?: string
+    profilePhoto?: string
   }
-  contenu: string
+  sender?: {
+    _id: string
+    firstName?: string
+    lastName?: string
+    email?: string
+    profilePhoto?: string
+  }
+  contenu?: string
+  content?: string
+  image?: string
   createdAt: string
   updatedAt: string
 }

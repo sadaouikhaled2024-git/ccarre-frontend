@@ -15,6 +15,7 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { annonceApi, type Annonce } from "@/lib/annonce-api"
 import { favoriteApi } from "@/lib/favorite-api"
+import { ProfileEditor } from "@/components/profile-editor"
 
 export default function ProfilePage() {
   const { isAuthenticated, loading, user, token } = useAuth()
@@ -23,6 +24,7 @@ export default function ProfilePage() {
   const [favoritesCount, setFavoritesCount] = useState(0)
   const [isLoadingData, setIsLoadingData] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showProfileEditor, setShowProfileEditor] = useState(false)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -82,7 +84,7 @@ export default function ProfilePage() {
             <CardContent className="pt-6">
               <div className="flex flex-col items-center gap-6 md:flex-row md:items-start">
                 <Avatar className="size-24 border-4 border-primary/20">
-                  <AvatarImage src={(user as any)?.profileImage} alt={`${user?.firstName} ${user?.lastName}`} />
+                  <AvatarImage src={(user as any)?.profilePhoto} alt={`${user?.firstName} ${user?.lastName}`} />
                   <AvatarFallback className="bg-primary/10 text-primary text-2xl">
                     {`${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}` || "U"}
                   </AvatarFallback>
@@ -90,12 +92,6 @@ export default function ProfilePage() {
                 <div className="flex-1 text-center md:text-left">
                   <div className="flex items-center gap-2 justify-center md:justify-start flex-wrap">
                     <h1 className="text-2xl font-bold text-foreground">{`${user?.firstName ?? ""} ${user?.lastName ?? ""}`}</h1>
-                    {(user as any)?.reportCount > 0 && (
-                      <Badge className="bg-destructive text-white gap-1">
-                        <AlertTriangle className="h-3 w-3" />
-                        Signalé
-                      </Badge>
-                    )}
                     {(user as any)?.riskScore && (user as any)?.riskScore >= 50 && (
                       <Badge className={`gap-1 ${(user as any)?.riskScore >= 80 ? 'bg-destructive text-white' : 'bg-yellow-600 text-white'}`}>
                         <AlertCircle className="h-3 w-3" />
@@ -108,14 +104,12 @@ export default function ProfilePage() {
                       <Mail className="size-4" />
                       <span className="text-sm">{user?.email}</span>
                     </div>
-                    <div className="flex items-center justify-center gap-2 text-muted-foreground md:justify-start">
-                      <GraduationCap className="size-4" />
-                      <span className="text-sm">Université Aix-Marseille</span>
-                    </div>
-                    <div className="flex items-center justify-center gap-2 text-muted-foreground md:justify-start">
-                      <MapPin className="size-4" />
-                      <span className="text-sm">Campus AMU</span>
-                    </div>
+                    {user?.campus ? (
+                      <div className="flex items-center justify-center gap-2 text-muted-foreground md:justify-start">
+                        <GraduationCap className="size-4" />
+                        <span className="text-sm">{typeof user.campus === 'string' ? user.campus : ((user.campus as any)?.name || String(user.campus))}</span>
+                      </div>
+                    ) : null}
                     <div className="flex items-center justify-center gap-2 text-muted-foreground md:justify-start">
                       <Calendar className="size-4" />
                       <span className="text-sm">
@@ -124,13 +118,29 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 </div>
-                <Button variant="outline" size="sm" className="gap-2">
+                <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowProfileEditor(!showProfileEditor)}>
                   <Edit className="size-4" />
                   Modifier le profil
                 </Button>
               </div>
             </CardContent>
           </Card>
+
+          {/* Profile Editor */}
+          {showProfileEditor && (
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>Modifier votre profil</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ProfileEditor 
+                  user={user as any}
+                  token={token || ""}
+                  onProfileUpdate={() => setShowProfileEditor(false)}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           {/* Stats */}
           <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">

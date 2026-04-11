@@ -90,12 +90,45 @@ export interface User {
 export interface Report {
   _id: string;
   type: string;
+  targetId: string;
   reason: string;
   status: string;
   priority: string;
   reportedBy: {
+    id?: string;
     firstName: string;
     lastName: string;
+    email?: string;
+  };
+  targetData?: {
+    // For annonces
+    title?: string;
+    description?: string;
+    images?: string[];
+    category?: string;
+    price?: number;
+    status?: string;
+    owner?: {
+      firstName: string;
+      lastName: string;
+      email: string;
+    };
+    // For users
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    riskScore?: number;
+    reportCount?: number;
+    isBanned?: boolean;
+    createdAt?: string;
+    // For messages
+    contenu?: string;
+    timestamp?: string;
+    expediteur?: {
+      firstName: string;
+      lastName: string;
+      email: string;
+    };
   };
   createdAt: string;
 }
@@ -199,6 +232,16 @@ export const deleteAnnonce = async (id: string, reason: string, token?: string) 
   return response as ApiResponse<Annonce>;
 };
 
+export const hardDeleteAnnonce = async (id: string, reason?: string, token?: string) => {
+  const finalToken = token || getAuthToken();
+  const response = await request<ApiResponse<any>>(`/annonces/${id}/hard-delete`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason: reason || 'Hard delete by admin' }),
+  }, finalToken);
+  return response as ApiResponse<any>;
+};
+
 export const updateAnnonceRiskScore = async (
   id: string,
   riskScore: number,
@@ -239,6 +282,15 @@ export const unbanUser = async (userId: string, token?: string) => {
   const finalToken = token || getAuthToken();
   const response = await request<ApiResponse<User>>(`/users/${userId}/unban`, { method: 'POST' }, finalToken);
   return response as ApiResponse<User>;
+};
+
+export const deleteUser = async (userId: string, token?: string) => {
+  const finalToken = token || getAuthToken();
+  const response = await request<ApiResponse<any>>(`/users/${userId}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+  }, finalToken);
+  return response as ApiResponse<any>;
 };
 
 /* ════════════════════════════════════════════════════════════════════

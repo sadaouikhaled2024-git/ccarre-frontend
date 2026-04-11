@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { getAnnonces, deleteAnnonce, getAnnonceDetail } from '../../../lib/admin-api';
+import { getAnnonces, deleteAnnonce, hardDeleteAnnonce, getAnnonceDetail } from '../../../lib/admin-api';
 import Link from 'next/link';
 import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
@@ -20,7 +20,7 @@ function RiskBadge({ score }: { score: number }) {
   } else if (score >= 20) {
     return <Badge className="bg-orange-600 text-white">🟠 Moyen ({score})</Badge>;
   }
-  return <Badge className="bg-green-600 text-white">🟢 Faible ({score})</Badge>;
+  return <Badge className="text-white" style={{ backgroundColor: "#B44362" }}>🟢 Faible ({score})</Badge>;
 }
 
 export default function AdminAnnonces() {
@@ -31,6 +31,8 @@ export default function AdminAnnonces() {
   const [loading, setLoading] = useState(true);
   const [selectedAnnonce, setSelectedAnnonce] = useState<any>(null);
   const [showModal, setShowModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteType, setDeleteType] = useState<'soft' | 'hard'>('soft');
 
   useEffect(() => {
     fetchAnnonces();
@@ -49,14 +51,29 @@ export default function AdminAnnonces() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cette annonce?')) {
-      try {
-        await deleteAnnonce(id, 'Suppression par administrateur');
-        fetchAnnonces();
-      } catch (error) {
-        console.error('Erreur:', error);
+  const handleDelete = async (id: string, type: 'soft' | 'hard' = 'soft') => {
+    setShowDeleteModal(true);
+    setSelectedAnnonce({ _id: id, title: 'Annonce' });
+    setDeleteType(type);
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedAnnonce?._id) return;
+
+    try {
+      if (deleteType === 'hard') {
+        await hardDeleteAnnonce(selectedAnnonce._id, 'Suppression définitive par administrateur');
+        alert('Annonce supprimée définitivement');
+      } else {
+        await deleteAnnonce(selectedAnnonce._id, 'Suppression par administrateur');
+        alert('Annonce marquée comme supprimée');
       }
+      setShowDeleteModal(false);
+      setSelectedAnnonce(null);
+      fetchAnnonces();
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur lors de la suppression');
     }
   };
 
@@ -141,7 +158,7 @@ export default function AdminAnnonces() {
                             <RiskBadge score={annonce.riskScore} />
                           </td>
                           <td className="px-6 py-4 text-sm">
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 flex-wrap">
                               <Button
                                 onClick={() => handleViewDetail(annonce._id)}
                                 size="sm"
@@ -150,7 +167,15 @@ export default function AdminAnnonces() {
                                 Détail
                               </Button>
                               <Button
-                                onClick={() => handleDelete(annonce._id)}
+                                onClick={() => handleDelete(annonce._id, 'soft')}
+                                size="sm"
+                                variant="outline"
+                                className="text-orange-600 hover:bg-orange-50"
+                              >
+                                Archive
+                              </Button>
+                              <Button
+                                onClick={() => handleDelete(annonce._id, 'hard')}
                                 size="sm"
                                 variant="destructive"
                               >
@@ -246,6 +271,32 @@ export default function AdminAnnonces() {
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowModal(false)}>
                   Fermer
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Modal Confirmation Suppression */}
+          <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Confirmer la suppression</DialogTitle>
+                <DialogDescription>
+                  {deleteType === 'hard' 
+                    ? '⚠️ SUPPRESSION DÉFINITIVE - Cette action ne peut pas être annulée. L\'annonce sera complètement supprimée de la base de données.'
+                    : 'Marquer cette annonce comme supprimée (elle reste en base de données comme archive).'
+                  }
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
+                  Annuler
+                </Button>
+                <Button 
+                  variant={deleteType === 'hard' ? 'destructive' : 'default'}
+                  onClick={confirmDelete}
+                >
+                  {deleteType === 'hard' ? 'Supprimer définitivement' : 'Archiver'}
                 </Button>
               </DialogFooter>
             </DialogContent>

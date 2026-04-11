@@ -112,8 +112,15 @@ function RiskBadge({ score }: { score?: number }) {
   )
 }
 
-export function MessagingPageContent() {
-  const { token, user } = useAuth()
+interface MessagingPageContentProps {
+  initialParticipantId?: string
+}
+
+export function MessagingPageContent({ initialParticipantId }: MessagingPageContentProps = {}) {
+  const { token: contextToken, user } = useAuth()
+  const token =
+    contextToken ||
+    (typeof window !== "undefined" ? window.localStorage.getItem("ccarre_token") : null)
   const [echanges, setEchanges] = useState<Echange[]>([])
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null)
   const [messagesByEchange, setMessagesByEchange] = useState<Record<string, Message[]>>({})
@@ -122,7 +129,7 @@ export function MessagingPageContent() {
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [newMessage, setNewMessage] = useState("")
-  const [showMobileChat, setShowMobileChat] = useState(false)
+  const [showMobileChat, setShowMobileChat] = useState(true)
   const [selectedImages, setSelectedImages] = useState<File[]>([])
   const [imagePreviews, setImagePreviews] = useState<string[]>([])
   const [blockedIds, setBlockedIds] = useState<string[]>([])
@@ -247,18 +254,29 @@ export function MessagingPageContent() {
   }, [token, toast])
 
   const isImageContent = useCallback((content: string) => {
+    if (!content) return false
     return content.startsWith("data:image") || /\.(png|jpe?g|gif|webp|avif)$/i.test(content)
   }, [])
 
-  const mapApiMessage = useCallback((message: ApiMessage): Message => ({
-    id: message._id,
-    content: message.contenu,
-    senderId: (message.expediteur as any)?._id ?? "",
-    timestamp: new Date(message.createdAt),
-    isRead: true,
-    isImage: isImageContent(message.contenu),
-    status: "sent",
-  }), [isImageContent])
+  const mapApiMessage = useCallback((message: ApiMessage): Message => {
+    const textContent = (message as any).contenu || (message as any).content || ""
+    const imageContent = (message as any).image || ""
+    const normalizedContent = imageContent || textContent
+    const senderId =
+      (message as any)?.sender?._id ||
+      (message as any)?.expediteur?._id ||
+      ""
+
+    return {
+      id: message._id,
+      content: normalizedContent,
+      senderId,
+      timestamp: new Date(message.createdAt),
+      isRead: true,
+      isImage: isImageContent(normalizedContent),
+      status: "sent",
+    }
+  }, [isImageContent])
 
   const addMessageToEchange = useCallback((echangeId: string, message: Message) => {
     setMessagesByEchange((prev) => {
@@ -292,7 +310,13 @@ export function MessagingPageContent() {
       const counterpart = getCounterpart(echange)
       const lastMessage = messagesByEchange[echange._id]?.[messagesByEchange[echange._id].length - 1]
       const annonce = (echange.annonce as any)
-      const annonceImage = annonce?.images?.[0] || "/placeholder.jpg"
+      const annonceImage =
+        annonce?.images?.[0] || annonce?.image || annonce?.photo || "/placeholder.jpg"
+      const counterpartName =
+        `${counterpart?.firstName ?? counterpart?.prenom ?? ""} ${counterpart?.lastName ?? counterpart?.nom ?? ""}`.trim() ||
+        counterpart?.username ||
+        counterpart?.name ||
+        "Utilisateur"
 
       const lastMessageText = lastMessage
         ? lastMessage.isImage
@@ -306,15 +330,15 @@ export function MessagingPageContent() {
         id: echange._id,
         participant: {
           id: counterpart?._id ?? "",
-          name: `${counterpart?.firstName ?? ""} ${counterpart?.lastName ?? ""}`.trim() || "Utilisateur",
-          avatar: counterpart?.profileImage,
+          name: counterpartName,
+          avatar: counterpart?.profilePhoto || counterpart?.image || counterpart?.avatar,
           isOnline: false,
           riskScore: (counterpart as any)?.riskScore,
         },
         lastMessage: lastMessageText,
         lastMessageTime: lastMessage?.timestamp || new Date(echange.updatedAt),
         unreadCount: 0,
-        annonceTitle: annonce?.title,
+        annonceTitle: annonce?.title || annonce?.titre || "Annonce",
         annonceImage: annonceImage,
       }
     })
@@ -433,14 +457,27 @@ export function MessagingPageContent() {
   }, [token])
 
   useEffect(() => {
-    if (!token) return
+    if (!token) {
+      setEchanges([])
+      setLoadingEchanges(false)
+      return
+    }
 
     const fetchEchanges = async () => {
       try {
         setLoadingEchanges(true)
         setError(null)
         const response = await echangeApi.getAll(token)
-        const list = Array.isArray(response.data) ? (response.data as Echange[]) : []
+        const rawData = response.data as any
+        const list: Echange[] = Array.isArray(rawData)
+          ? rawData
+          : Array.isArray(rawData?.echanges)
+            ? rawData.echanges
+            : rawData?.ongoing || rawData?.completed
+              ? [...(rawData?.ongoing || []), ...(rawData?.completed || [])]
+              : rawData?.echange
+                ? [rawData.echange]
+                : []
         setEchanges(list)
 
         // Join exchange rooms for realtime updates
@@ -521,6 +558,23 @@ export function MessagingPageContent() {
       loadMessages(conv.id)
     }
   }
+
+  useEffect(() => {
+    if (selectedConversationId || filteredConversations.length === 0) return
+
+    const preferredConversation = initialParticipantId
+      ? filteredConversations.find(
+          (conv) => conv.participant.id === initialParticipantId || conv.id === initialParticipantId,
+        )
+      : undefined
+
+    const conversationToSelect = preferredConversation ?? filteredConversations[0]
+
+    setSelectedConversationId(conversationToSelect.id)
+    if (!messagesByEchange[conversationToSelect.id]) {
+      loadMessages(conversationToSelect.id)
+    }
+  }, [filteredConversations, initialParticipantId, loadMessages, messagesByEchange, selectedConversationId])
 
   const handleSendMessage = async () => {
     if ((!newMessage.trim() && selectedImages.length === 0) || !selectedConversationId || !token) {
@@ -726,7 +780,6 @@ export function MessagingPageContent() {
         title: " Utilisateur bloqué",
         description: `${selectedConversation.participant.name} a été bloqué`,
       })
-      setShowMobileChat(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur lors du blocage")
       toast({
@@ -738,7 +791,7 @@ export function MessagingPageContent() {
   }
 
   const handleBackToList = () => {
-    setShowMobileChat(false)
+    // Messagerie inmasquable
   }
 
   const selectedConversation = selectedConversationId
@@ -753,12 +806,11 @@ export function MessagingPageContent() {
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
       
       <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden h-[calc(100vh-220px)] min-h-125">
-        <div className="flex h-full">
+        <div className="flex h-full flex-col md:flex-row">
           {/* Conversations List */}
           <div
             className={cn(
-              "w-full md:w-80 lg:w-96 border-r border-border flex flex-col bg-card",
-              showMobileChat && "hidden md:flex"
+              "w-full md:w-80 lg:w-96 md:shrink-0 border-b md:border-b-0 md:border-r border-border flex flex-col bg-card h-[40%] md:h-auto"
             )}
           >
             {/* Search Header */}
@@ -843,8 +895,7 @@ export function MessagingPageContent() {
           {/* Chat Area */}
           <div
             className={cn(
-              "flex-1 flex flex-col bg-background",
-              !showMobileChat && "hidden md:flex"
+              "flex-1 min-h-0 flex flex-col bg-background"
             )}
           >
             {selectedConversation ? (
@@ -983,9 +1034,12 @@ export function MessagingPageContent() {
                       const echange = echanges.find(e => e._id === selectedConversationId)
                       if (!echange) return null
                       const isOwner = (echange.utilisateurProprietaire as any)?._id === user?._id
+                      const status = String((echange as any).statut || "").toLowerCase()
+                      const isPending = status === "en_attente"
+                      const isActive = status === "accepte" || status === "discussion" || status === "rendez_vous_accepte" || status === "rendez_vous_propose"
                       return (
                         <div className="p-3 border-t border-border bg-card flex gap-2 justify-end flex-wrap">
-                          {echange.statut === "EN_ATTENTE" && isOwner && (
+                          {isPending && isOwner && (
                             <>
                               <Button
                                 size="sm"
@@ -1004,7 +1058,7 @@ export function MessagingPageContent() {
                               </Button>
                             </>
                           )}
-                          {echange.statut === "ACCEPTE" && (
+                          {isActive && (
                             <>
                               <Button
                                 size="sm"
@@ -1019,7 +1073,7 @@ export function MessagingPageContent() {
                                 onClick={() => handleCompleteExchange(echange._id)}
                                 className="bg-[#EC7578] hover:bg-[#d45166] text-white"
                               >
-                                Clôturer
+                                Marquer comme terminé
                               </Button>
                             </>
                           )}
@@ -1142,245 +1196,82 @@ export function MessagingPageContent() {
                 </div>
 
                 {/* Message Input */}
-                <div className="p-4 border-t border-border bg-card space-y-3">
+                <div className="p-4 border-t border-border bg-card space-y-3 shrink-0">
                   {(() => {
-                    const currentEchange = echanges.find(e => e._id === selectedConversationId)
-                    const isOwner = (currentEchange?.utilisateurProprietaire as any)?._id === user?._id
-                    const isWaitingForAcceptance = currentEchange?.statut === "EN_ATTENTE"
-                    const isAccepted = currentEchange?.statut === "ACCEPTE"
-                    const isRefused = currentEchange?.statut === "REFUSE"
-                    const isTerminated = currentEchange?.statut === "TERMINE"
                     const isBlocked = blockedIds.includes(selectedConversation.participant.id)
-                    
-                    if (isBlocked) {
-                      // User is blocked
-                      return (
-                        <div className="bg-destructive/10 dark:bg-destructive/20 border border-destructive/30 dark:border-destructive/40 rounded-lg p-4 space-y-3">
-                          <div className="flex items-start gap-3">
-                            <Ban className="size-5 text-destructive flex-shrink-0 mt-0.5" />
-                            <div className="flex-1">
-                              <p className="font-semibold text-destructive dark:text-destructive/90 text-sm">
-                                Utilisateur bloqué
-                              </p>
-                              <p className="text-sm text-destructive/80 dark:text-destructive/80 mt-1">
-                                {selectedConversation.participant.name} a été bloqué. Vous ne pouvez pas envoyer de messages à cet utilisateur.
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={async () => {
-                                if (!token) return
-                                try {
-                                  await blockApi.unblock(selectedConversation.participant.id, token)
-                                  setBlockedIds((prev) => prev.filter((id) => id !== selectedConversation.participant.id))
-                                  toast({
-                                    title: "Utilisateur débloqué",
-                                    description: `${selectedConversation.participant.name} a été débloqué`,
-                                  })
-                                } catch (err) {
-                                  toast({
-                                    title: "Erreur",
-                                    description: err instanceof Error ? err.message : "Impossible de débloquer l'utilisateur",
-                                    variant: "destructive",
-                                  })
-                                }
-                              }}
-                              className="text-destructive border-destructive/30 hover:bg-destructive/10 flex-1"
-                            >
-                              Débloquer
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-destructive border-destructive/30 hover:bg-destructive/10 flex-1"
-                            >
-                              Besoin d'aide ?
-                            </Button>
-                          </div>
-                        </div>
-                      )
-                    }
-                    
-                    if (isTerminated) {
-                      // Échange terminé - bloqué
-                      return (
-                        <div className="bg-rose-100 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 rounded-lg p-4">
-                          <p className="text-sm font-semibold text-rose-900 dark:text-rose-100 mb-3">
-                            Échange terminé
-                          </p>
-                          <p className="text-sm text-rose-800 dark:text-rose-200 mb-4">
-                            Cet échange est terminé. Vous ne pouvez plus envoyer de messages.
-                          </p>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full text-rose-600 border-rose-200 hover:bg-rose-50"
-                          >
-                            Besoin d'aide ?
-                          </Button>
-                        </div>
-                      )
-                    }
-                    
-                    if (isWaitingForAcceptance && !isOwner) {
-                      // Demandeur en attente de réponse du propriétaire
-                      return (
-                        <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
-                          <p className="text-sm font-semibold text-orange-900 dark:text-orange-100 mb-3">
-                            En attente de réponse
-                          </p>
-                          <p className="text-sm text-orange-800 dark:text-orange-200 mb-4">
-                            Vous ne pouvez pas contacter cet utilisateur tant qu'il n'a pas accepté votre échange.
-                          </p>
-                          <div className="flex flex-col gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleCancelExchange(currentEchange._id)}
-                              className="text-rose-600 border-rose-200 hover:bg-rose-50"
-                            >
-                              Annuler la demande
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-rose-600 border-rose-200 hover:bg-rose-50"
-                            >
-                              Besoin d'aide ?
-                            </Button>
-                          </div>
-                        </div>
-                      )
-                    }
-                    
-                    if (isWaitingForAcceptance && isOwner) {
-                      // Propriétaire avec demande en attente
-                      return (
-                        <div className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 rounded-lg p-4">
-                          <p className="text-sm font-semibold text-rose-900 dark:text-rose-100 mb-3">
-                            Nouvelle demande d'échange
-                          </p>
-                          <p className="text-sm text-rose-800 dark:text-rose-200 mb-4">
-                            Acceptez ou refusez cette demande d'échange pour continuer.
-                          </p>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleRefuseExchange(currentEchange._id)}
-                              className="text-rose-600 border-rose-200 hover:bg-rose-50 flex-1"
-                            >
-                              Refuser
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => handleAcceptExchange(currentEchange._id)}
-                              className="bg-[#EC7578] hover:bg-[#d45166] text-white flex-1"
-                            >
-                              Accepter
-                            </Button>
-                          </div>
-                        </div>
-                      )
-                    }
-                    
-                    if (isRefused) {
-                      // Échange refusé
-                      return (
-                        <div className="bg-rose-100 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 rounded-lg p-4 space-y-3">
-                          <div>
-                            <p className="text-sm font-semibold text-rose-900 dark:text-rose-100">
-                              Échange refusé
-                            </p>
-                            <p className="text-sm text-rose-800 dark:text-rose-200 mt-1">
-                              Cet échange a été refusé. Vous ne pouvez plus envoyer de messages.
+                    return (
+                      <>
+                        {isBlocked && (
+                          <div className="bg-destructive/10 dark:bg-destructive/20 border border-destructive/30 dark:border-destructive/40 rounded-lg p-3">
+                            <p className="text-sm text-destructive dark:text-destructive/90">
+                              Utilisateur bloqué. Vous pouvez toujours écrire ici.
                             </p>
                           </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full text-rose-600 border-rose-200 hover:bg-rose-50"
-                          >
-                            Besoin d'aide ?
-                          </Button>
-                        </div>
-                      )
-                    }
-                    
-                    // Échange accepté - afficher l'input
-                    if (isAccepted) {
-                      return (
-                        <>
-                          {/* Image Previews */}
-                          {imagePreviews.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                              {imagePreviews.map((preview, index) => (
-                                <div key={index} className="relative w-20 h-20 rounded-lg overflow-hidden border border-border">
-                                  <Image
-                                    src={preview}
-                                    alt={`Preview ${index + 1}`}
-                                    fill
-                                    className="object-cover"
-                                  />
-                                  <button
-                                    onClick={() => removeImage(index)}
-                                    className="absolute top-1 right-1 bg-black/50 hover:bg-black/70 text-white rounded-full p-0.5 transition-colors"
-                                  >
-                                    <X className="size-3" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                        )}
 
-                          <form
-                            onSubmit={(e) => {
-                              e.preventDefault()
-                              handleSendMessage()
-                            }}
-                            className="flex items-center gap-2"
+                        {/* Image Previews */}
+                        {imagePreviews.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {imagePreviews.map((preview, index) => (
+                              <div key={index} className="relative w-20 h-20 rounded-lg overflow-hidden border border-border">
+                                <Image
+                                  src={preview}
+                                  alt={`Preview ${index + 1}`}
+                                  fill
+                                  className="object-cover"
+                                />
+                                <button
+                                  onClick={() => removeImage(index)}
+                                  className="absolute top-1 right-1 bg-black/50 hover:bg-black/70 text-white rounded-full p-0.5 transition-colors"
+                                >
+                                  <X className="size-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault()
+                            handleSendMessage()
+                          }}
+                          className="flex items-center gap-2"
+                        >
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            onChange={handleImageSelect}
+                            className="hidden"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="text-muted-foreground hover:text-foreground shrink-0"
                           >
-                            <input
-                              ref={fileInputRef}
-                              type="file"
-                              multiple
-                              accept="image/*"
-                              onChange={handleImageSelect}
-                              className="hidden"
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => fileInputRef.current?.click()}
-                              className="text-muted-foreground hover:text-foreground shrink-0"
-                            >
-                              <ImageIcon className="size-5" />
-                            </Button>
-                            <Input
-                              placeholder="Écrivez votre message..."
-                              value={newMessage}
-                              onChange={(e) => setNewMessage(e.target.value)}
-                              className="flex-1 bg-muted/50 border-0"
-                            />
-                            <Button
-                              type="submit"
-                              size="icon"
-                              className="bg-rose-500 hover:bg-rose-600 shrink-0"
-                              disabled={!newMessage.trim() && imagePreviews.length === 0}
-                            >
-                              <Send className="size-4" />
-                            </Button>
-                          </form>
-                        </>
-                      )
-                    }
-                    
-                    // Default case (no exchange)
-                    return null
+                            <ImageIcon className="size-5" />
+                          </Button>
+                          <Input
+                            placeholder="Écrivez votre message..."
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            className="flex-1 bg-muted/50 border-0"
+                          />
+                          <Button
+                            type="submit"
+                            size="icon"
+                            className="bg-rose-500 hover:bg-rose-600 shrink-0"
+                            disabled={!newMessage.trim() && imagePreviews.length === 0}
+                          >
+                            <Send className="size-4" />
+                          </Button>
+                        </form>
+                      </>
+                    )
                   })()}
                 </div>
               </>

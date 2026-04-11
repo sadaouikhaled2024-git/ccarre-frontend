@@ -1,397 +1,319 @@
-'use client';
+"use client"
 
-import React, { useEffect, useState } from 'react';
-import { getReports, updateReportStatus, deleteReport } from '../../../lib/admin-api';
-import { Navbar } from '@/components/navbar';
-import { Footer } from '@/components/footer';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Flag, User, Clock, Trash2, Eye } from 'lucide-react';
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { ChevronLeft } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
+import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Navbar } from "@/components/navbar"
+import { Footer } from "@/components/footer"
+import { StatisticsCards } from "@/components/admin/statistics-cards"
+import { FilterPanel, type FilterState } from "@/components/admin/filter-panel"
+import { ReportsTable } from "@/components/admin/reports-table"
+import { ReportDetailModal } from "@/components/admin/report-detail-modal"
+import {
+  reportsAdminApi,
+  type Report,
+  type ReportStatus,
+  type AdminAction,
+  type StatsResponse,
+} from "@/lib/reports-admin-api"
+import { showNotification } from "@/components/notification-toast"
 
-export default function AdminReports() {
-  const [reports, setReports] = useState<any[]>([]);
-  const [status, setStatus] = useState('all');
-  const [priority, setPriority] = useState('all');
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [selectedReport, setSelectedReport] = useState<any>(null);
-  const [updateModalOpen, setUpdateModalOpen] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState('');
-  const [updatePriority, setUpdatePriority] = useState('');
-  const [adminNotes, setAdminNotes] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+export default function AdminReportsPage() {
+  const { token, user } = useAuth()
+  const router = useRouter()
+  const [stats, setStats] = useState<StatsResponse["data"]["summary"] | null>(null)
+  const [reports, setReports] = useState<Report[]>([])
+  const [loading, setLoading] = useState(false)
+  const [selectedReport, setSelectedReport] = useState<Report | null>(null)
+  const [showDetailModal, setShowDetailModal] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [filters, setFilters] = useState<FilterState>({})
+  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0, limit: 20 })
+  const [searchQuery, setSearchQuery] = useState('')
 
+  // Check if user is admin
   useEffect(() => {
-    fetchReports();
-  }, [status, priority, page]);
-
-  const fetchReports = async () => {
-    try {
-      setLoading(true);
-      const data = await getReports(status, priority, page, 10);
-      setReports(data.data || []);
-      setTotal(data.pagination?.total || 0);
-    } catch (error) {
-      console.error('Erreur:', error);
-    } finally {
-      setLoading(false);
+    if (!token || user?.role !== "admin") {
+      router.push("/")
     }
-  };
+  }, [token, user, router])
 
-  const handleUpdate = async () => {
-    if (!selectedReport) return;
+  // Fetch statistics
+  useEffect(() => {
+    if (!token) return
 
-    try {
-      setError(null);
-      await updateReportStatus(
-        selectedReport._id,
-        updateStatus || selectedReport.status,
-        updatePriority || selectedReport.priority,
-        adminNotes || undefined,
-      );
-      setSuccessMessage('Signalement mis à jour avec succès');
-      setUpdateModalOpen(false);
-      setSelectedReport(null);
-      setTimeout(() => setSuccessMessage(null), 3000);
-      fetchReports();
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Erreur lors de la mise à jour';
-      setError(errorMsg);
-      console.error('Erreur:', err);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (confirm('Supprimer ce signalement?')) {
+    const fetchStats = async () => {
       try {
-        setError(null);
-        await deleteReport(id);
-        setSuccessMessage('Signalement supprimé avec succès');
-        setTimeout(() => setSuccessMessage(null), 3000);
-        fetchReports();
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Erreur lors de la suppression';
-        setError(errorMsg);
-        console.error('Erreur:', err);
+        const response = await reportsAdminApi.getStats(token)
+        setStats(response.data.summary)
+      } catch (error) {
+        console.error("Error fetching stats:", error)
+        showNotification({
+          title: "Erreur",
+          message: "Impossible de charger les statistiques",
+          type: "error",
+        })
       }
     }
-  };
 
-  const openUpdateModal = (report: any) => {
-    setError(null);
-    setSelectedReport(report);
-    setUpdateStatus(report.status);
-    setUpdatePriority(report.priority);
-    setAdminNotes(report.adminNotes || '');
-    setUpdateModalOpen(true);
-  };
+    fetchStats()
+    const interval = setInterval(fetchStats, 5 * 60 * 1000) // Refresh every 5 minutes
+    return () => clearInterval(interval)
+  }, [token])
+
+  // Fetch reports
+  useEffect(() => {
+    if (!token) return
+
+    const fetchReports = async () => {
+      try {
+        setLoading(true)
+        let response
+        
+        // Use search endpoint if search query exists, otherwise use getList
+        if (searchQuery.trim()) {
+          console.log("Searching with query:", searchQuery)
+          response = await reportsAdminApi.search(
+            {
+              q: searchQuery,
+              page: filters.page || 1,
+              limit: 20,
+            },
+            token,
+          )
+        } else {
+          response = await reportsAdminApi.getList(
+            {
+              ...filters,
+              page: filters.page || 1,
+              limit: 20,
+            },
+            token,
+          )
+        }
+        
+        console.log("AdminReportsPage - API Response:", response)
+        console.log("AdminReportsPage - Reports data:", response.data)
+        console.log("AdminReportsPage - First report:", response.data[0])
+        console.log("AdminReportsPage - First report targetData:", response.data[0]?.targetData)
+        
+        setReports(response.data)
+        setPagination({
+          page: response.pagination.page,
+          pages: response.pagination.pages,
+          total: response.pagination.total,
+          limit: response.pagination.limit,
+        })
+      } catch (error) {
+        console.error("Error fetching reports:", error)
+        showNotification({
+          title: "Erreur",
+          message: "Impossible de charger les rapports",
+          type: "error",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchReports()
+  }, [filters, token, searchQuery])
+
+  const handleFilterChange = (newFilters: FilterState) => {
+    setFilters(newFilters)
+    setSelectedIds([])
+  }
+
+  const handleReportClick = (report: Report) => {
+    // Show detail modal for all report types
+    console.log("Opening modal for report:", report)
+    setSelectedReport(report)
+    setShowDetailModal(true)
+  }
+
+  const handleResolveReport = async (
+    status: ReportStatus,
+    action: AdminAction,
+    notes: string,
+  ) => {
+    if (!selectedReport || !token) return
+
+    try {
+      await reportsAdminApi.resolve(selectedReport._id, status, action, notes, token)
+      showNotification({
+        title: "Succès",
+        message: "Rapport mis à jour",
+        type: "success",
+      })
+
+      // Refresh reports and stats
+      setFilters({ ...filters })
+      const response = await reportsAdminApi.getStats(token)
+      setStats(response.data.summary)
+    } catch (error) {
+      console.error("Error resolving report:", error)
+      showNotification({
+        title: "Erreur",
+        message: error instanceof Error ? error.message : "Impossible de mettre à jour le rapport",
+        type: "error",
+      })
+    }
+  }
+
+  const handleBulkAction = async (action: AdminAction, status: ReportStatus = "RESOLU") => {
+    if (selectedIds.length === 0 || !token) return
+
+    try {
+      await reportsAdminApi.bulkUpdate(selectedIds, status, action, "Bulk action", token)
+      showNotification({
+        title: "Succès",
+        message: `${selectedIds.length} rapports mis à jour`,
+        type: "success",
+      })
+
+      setSelectedIds([])
+      setFilters({ ...filters })
+      const response = await reportsAdminApi.getStats(token)
+      setStats(response.data.summary)
+    } catch (error) {
+      console.error("Error bulk updating:", error)
+      showNotification({
+        title: "Erreur",
+        message: error instanceof Error ? error.message : "Erreur lors de la mise à jour",
+        type: "error",
+      })
+    }
+  }
+
+  if (!token || user?.role !== "admin") {
+    return null
+  }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <>
       <Navbar />
-      <main className="flex-1 py-12">
-        <div className="mx-auto max-w-6xl px-6">
-          {/* Messages d'erreur et de succès */}
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-red-800 dark:text-red-300">Erreur</p>
-                <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
-              </div>
-            </div>
-          )}
-
-          {successMessage && (
-            <div className="mb-6 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg flex items-start gap-3">
-              <div className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5">✓</div>
-              <p className="text-sm text-green-700 dark:text-green-400">{successMessage}</p>
-            </div>
-          )}
-
+      <div className="min-h-screen bg-white">
+        <div className="mx-auto max-w-7xl mx-auto px-4 py-8">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-4xl font-bold text-foreground mb-2">Gestion des Signalements</h1>
-            <p className="text-muted-foreground">Modérez et gérez tous les signalements des utilisateurs</p>
+            <Link href="/admin" className="flex items-center gap-2 text-[#B44362] hover:text-[#B44362]/80 mb-4 w-fit">
+              <ChevronLeft className="h-4 w-4" />
+              Retour au dashboard
+            </Link>
+            <h1 className="text-3xl font-bold text-[#1F0C11] mb-2">Dashboard Admin</h1>
+            <p className="text-[#1F0C11]/60">Gestion des rapports et modération</p>
           </div>
 
-          {/* Filtres */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Statut</label>
-              <select
-                value={status}
-                onChange={(e) => {
-                  setStatus(e.target.value);
-                  setPage(1);
-                }}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
-              >
-                <option value="all">Tous</option>
-                <option value="ouvert">Ouverts</option>
-                <option value="en_cours">En cours</option>
-                <option value="resolu">Résolus</option>
-                <option value="rejete">Rejetés</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Priorité</label>
-              <select
-                value={priority}
-                onChange={(e) => {
-                  setPriority(e.target.value);
-                  setPage(1);
-                }}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
-              >
-                <option value="all">Tous</option>
-                <option value="urgent">Urgent</option>
-                <option value="high">Élevé</option>
-                <option value="normal">Normal</option>
-                <option value="low">Bas</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Stats</label>
-              <div className="text-sm text-muted-foreground pt-2">
-                Total: <span className="font-semibold text-foreground">{total}</span>
-              </div>
-            </div>
+          {/* Statistics Cards */}
+          <div className="mb-8">
+            <StatisticsCards stats={stats} loading={!stats} />
           </div>
 
-          {/* Rapports */}
-          {loading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              <p className="text-muted-foreground mt-2">Chargement...</p>
+          {/* Main Content */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+            {/* Filters */}
+            <div className="lg:col-span-1">
+              <FilterPanel onFilterChange={handleFilterChange} loading={loading} />
             </div>
-          ) : reports.length === 0 ? (
-            <Card className="text-center py-12">
-              <CardContent>
-                <AlertTriangle className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-                <p className="text-muted-foreground">Aucun signalement trouvé</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <div className="space-y-4">
-                {reports.map((report) => (
-                  <Card key={report._id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="pt-6">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Flag className="w-4 h-4 text-red-500" />
-                            <h3 className="font-semibold text-foreground capitalize">{report.type}</h3>
-                            <StatusBadge status={report.status} />
-                            <PriorityBadge priority={report.priority} />
-                          </div>
-                          
-                          <p className="text-sm text-muted-foreground mb-3"><strong>Raison:</strong> {report.reason}</p>
-                          <p className="text-sm text-muted-foreground mb-3"><strong>Description:</strong> {report.description}</p>
-                          
-                          {/* Annonce Details if available */}
-                          {report.annonce && (
-                            <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded">
-                              <p className="font-medium text-blue-900 dark:text-blue-300 mb-2">Annonce signalée</p>
-                              <div className="space-y-1 text-sm text-blue-800 dark:text-blue-400">
-                                <p><strong>Titre:</strong> {report.annonce.title}</p>
-                                {report.annonce.description && <p><strong>Description:</strong> {report.annonce.description.substring(0, 100)}...</p>}
-                                <p><strong>Score de risque:</strong> <span className="font-semibold">{report.annonce.riskScore || 0}</span></p>
-                                <p><strong>Nombre de signalements:</strong> <span className="font-semibold">{report.annonce.reportCount || 0}</span></p>
-                              </div>
-                            </div>
-                          )}
 
-                          {/* User Details if available */}
-                          {report.user && (
-                            <div className="mt-3 p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded">
-                              <p className="font-medium text-orange-900 dark:text-orange-300 mb-2">Utilisateur signalé</p>
-                              <div className="space-y-1 text-sm text-orange-800 dark:text-orange-400">
-                                <p><strong>Nom:</strong> {report.user.firstName} {report.user.lastName}</p>
-                                <p><strong>Email:</strong> {report.user.email}</p>
-                                <p><strong>Score de risque:</strong> <span className="font-semibold">{report.user.riskScore || 0}</span></p>
-                                <p><strong>Nombre de signalements:</strong> <span className="font-semibold">{report.user.reportCount || 0}</span></p>
-                              </div>
-                            </div>
-                          )}
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-muted-foreground mt-3">
-                            <div className="flex items-center gap-2">
-                              <User className="w-4 h-4" />
-                              <span>{report.reportedBy?.firstName} {report.reportedBy?.lastName}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Clock className="w-4 h-4" />
-                              <span>{new Date(report.createdAt).toLocaleDateString('fr-FR')}</span>
-                            </div>
-                          </div>
-
-                          {report.adminNotes && (
-                            <div className="mt-3 p-3 bg-muted rounded text-sm">
-                              <p className="font-medium text-foreground mb-1">Notes admin:</p>
-                              <p className="text-muted-foreground">{report.adminNotes}</p>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex gap-2 flex-shrink-0">
-                          <button
-                            onClick={() => openUpdateModal(report)}
-                            className="p-2 hover:bg-muted rounded-lg transition text-muted-foreground hover:text-foreground"
-                            title="Modifier"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(report._id)}
-                            className="p-2 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition text-red-600 dark:text-red-400"
-                            title="Supprimer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-              {/* Pagination */}
-              <div className="mt-8 flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  Page {page} • Total: {total} signalements
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setPage(Math.max(1, page - 1))}
-                    disabled={page === 1}
-                    className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    ← Précédent
-                  </button>
-                  <button
-                    onClick={() => setPage(page + 1)}
-                    disabled={page * 10 >= total}
-                    className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    Suivant →
-                  </button>
+            {/* Bulk Actions & Reports */}
+            <div className="lg:col-span-3 space-y-6">
+              {/* Search Bar */}
+              <div className="flex gap-2">
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    placeholder="Rechercher par ID ou titre d'annonce..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full px-4 py-2 border border-[#B44362]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#B44362]/30"
+                  />
                 </div>
               </div>
-            </>
-          )}
 
-          {/* Modal */}
-          {updateModalOpen && selectedReport && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <Card className="w-full max-w-md">
-                <CardHeader>
-                  <CardTitle>Modifier le signalement</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {error && (
-                    <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-700 dark:text-red-400">
-                      {error}
+              {/* Bulk Actions */}
+              {selectedIds.length > 0 && (
+                <Card className="p-4 bg-[#B44362]/5 border border-[#B44362]/20">
+                  <div className="flex items-center justify-between gap-4">
+                    <p className="text-[#B44362] font-medium">
+                      {selectedIds.length} rapport{selectedIds.length > 1 ? "s" : ""} sélectionné{selectedIds.length > 1 ? "s" : ""}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-[#FF7F50]/30 text-[#FF7F50] hover:bg-[#FF7F50]/5"
+                        onClick={() => handleBulkAction("WARN_USER")}
+                      >
+                        Avertir
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-[#EC7578]/30 text-[#EC7578] hover:bg-[#EC7578]/5"
+                        onClick={() => handleBulkAction("BAN_USER")}
+                      >
+                        Bannir
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-[#B44362] hover:bg-[#B44362]/90 text-white"
+                        onClick={() => handleBulkAction("NONE")}
+                      >
+                        Marquer comme résolu
+                      </Button>
                     </div>
-                  )}
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Statut</label>
-                    <select
-                      value={updateStatus}
-                      onChange={(e) => setUpdateStatus(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
-                    >
-                      <option value="ouvert">Ouvert</option>
-                      <option value="en_cours">En cours</option>
-                      <option value="resolu">Résolu</option>
-                      <option value="rejete">Rejeté</option>
-                    </select>
                   </div>
+                </Card>
+              )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Priorité</label>
-                    <select
-                      value={updatePriority}
-                      onChange={(e) => setUpdatePriority(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
-                    >
-                      <option value="urgent">Urgent</option>
-                      <option value="high">Élevé</option>
-                      <option value="normal">Normal</option>
-                      <option value="low">Bas</option>
-                    </select>
-                  </div>
+              {/* Reports Table */}
+              <ReportsTable
+                reports={reports}
+                loading={loading}
+                onRowClick={handleReportClick}
+                selectedIds={selectedIds}
+                onSelectionChange={setSelectedIds}
+              />
 
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Notes</label>
-                    <textarea
-                      value={adminNotes}
-                      onChange={(e) => setAdminNotes(e.target.value)}
-                      placeholder="Ajouter des notes..."
-                      rows={3}
-                      className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground"
-                    />
-                  </div>
-
-                  <div className="flex gap-2 pt-4">
-                    <button
-                      onClick={() => {
-                        setUpdateModalOpen(false);
-                        setError(null);
-                      }}
-                      className="flex-1 px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted transition"
+              {/* Pagination */}
+              {pagination.pages > 1 && (
+                <div className="flex justify-center gap-2">
+                  {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((page) => (
+                    <Button
+                      key={page}
+                      variant={page === pagination.page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setFilters({ ...filters, page })}
+                      className={
+                        page === pagination.page
+                          ? "bg-[#B44362] hover:bg-[#B44362]/90 text-white"
+                          : "border-[#B44362]/30 text-[#B44362] hover:bg-[#B44362]/5"
+                      }
                     >
-                      Annuler
-                    </button>
-                    <button
-                      onClick={handleUpdate}
-                      className="flex-1 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition"
-                    >
-                      Sauvegarder
-                    </button>
-                  </div>
-                </CardContent>
-              </Card>
+                      {page}
+                    </Button>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
-      </main>
+      </div>
+
+      {/* Report Detail Modal */}
+      <ReportDetailModal
+        report={selectedReport}
+        open={showDetailModal}
+        onOpenChange={setShowDetailModal}
+        onResolve={handleResolveReport}
+      />
+
       <Footer />
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const statusStyles: Record<string, string> = {
-    ouvert: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
-    en_cours: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300',
-    resolu: 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300',
-    rejete: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300',
-  };
-
-  return (
-    <Badge className={statusStyles[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-950 dark:text-gray-300'}>
-      {status}
-    </Badge>
-  );
-}
-
-function PriorityBadge({ priority }: { priority: string }) {
-  const priorityStyles: Record<string, string> = {
-    urgent: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300',
-    high: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
-    normal: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
-    low: 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300',
-  };
-
-  return (
-    <Badge className={priorityStyles[priority] || 'bg-gray-100 text-gray-800 dark:bg-gray-950 dark:text-gray-300'}>
-      {priority}
-    </Badge>
-  );
+    </>
+  )
 }

@@ -21,6 +21,12 @@ export interface LoginPayload {
   password: string
 }
 
+export interface ChangePasswordPayload {
+  currentPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
 export interface AuthUser {
   _id: string
   firstName: string
@@ -100,5 +106,15 @@ export const authApi = {
         Authorization: `Bearer ${token}`,
       },
     }).then((res) => res.data?.user)
+  },
+
+  changePassword(payload: ChangePasswordPayload, token: string) {
+    return request<{ success: boolean; message: string }>("/api/auth/change-password", {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    })
   },
 }

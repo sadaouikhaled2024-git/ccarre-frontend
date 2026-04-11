@@ -1,330 +1,218 @@
-'use client';
+"use client"
 
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/auth-context"
+import { Navbar } from "@/components/navbar"
+import { Footer } from "@/components/footer"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts';
-import { getDashboardStats } from '../../lib/admin-api';
-import Link from 'next/link';
-import { AlertTriangle, Users, Package, Flag, TrendingUp } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Navbar } from '@/components/navbar';
-import { Footer } from '@/components/footer';
+  Users,
+  Package,
+  Flag,
+  BarChart3,
+  ArrowRight,
+  AlertCircle,
+} from "lucide-react"
 
-const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e'];
+const DASHBOARD_CARDS = [
+  {
+    id: "reports",
+    title: "Gestion de Signalements",
+    description: "Gérez les signalements et modérez les contenus problématiques",
+    icon: Flag,
+    href: "/admin/reports",
+    color: "#EC7578",
+    gradient: "from-[#EC7578]/10 to-[#B44362]/10",
+    stats: {
+      label: "Signalements",
+      value: "12",
+      change: "+2 cette semaine",
+    },
+  },
+  {
+    id: "users",
+    title: "Gestion d'Utilisateurs",
+    description: "Consultez et gérez les utilisateurs, bannissements et risques",
+    icon: Users,
+    href: "/admin/users",
+    color: "#FF7F50",
+    gradient: "from-[#FF7F50]/10 to-[#EC7578]/10",
+    stats: {
+      label: "Utilisateurs",
+      value: "42",
+      change: "+3 ce mois",
+    },
+  },
+  {
+    id: "annonces",
+    title: "Gestion d'Annonces",
+    description: "Modérez les annonces, vérifiez le statut et les prix suspects",
+    icon: Package,
+    href: "/admin/annonces",
+    color: "#B44362",
+    gradient: "from-[#B44362]/10 to-[#FF7F50]/10",
+    stats: {
+      label: "Annonces",
+      value: "156",
+      change: "+8 ce mois",
+    },
+  },
+  {
+    id: "analytics",
+    title: "Analytics",
+    description: "Visualisez les statistiques et tendances de la plateforme",
+    icon: BarChart3,
+    href: "/admin/analytics",
+    color: "#1F0C11",
+    gradient: "from-[#1F0C11]/5 to-[#B44362]/5",
+    stats: {
+      label: "Tendances",
+      value: "↑ 24%",
+      change: "Croissance mensuelle",
+    },
+  },
+]
 
-interface Stats {
-  totalAnnonces: number;
-  reportedAnnonces: number;
-  highRiskAnnonces: number;
-  totalUsers: number;
-  bannedUsers: number;
-  totalReports: number;
-  openReports: number;
-  urgentReports: number;
-}
+export default function AdminDashboardPage() {
+  const { isAuthenticated, loading, user } = useAuth()
+  const router = useRouter()
+  const [mounted, setMounted] = useState(false)
 
-const MOCK_STATS: Stats = {
-  totalAnnonces: 156,
-  reportedAnnonces: 12,
-  highRiskAnnonces: 3,
-  totalUsers: 42,
-  bannedUsers: 2,
-  totalReports: 18,
-  openReports: 5,
-  urgentReports: 1,
-};
-
-export default function AdminDashboard() {
-  const [stats, setStats] = useState<Stats>({
-    totalAnnonces: 156,
-    reportedAnnonces: 12,
-    highRiskAnnonces: 3,
-    totalUsers: 42,
-    bannedUsers: 2,
-    totalReports: 18,
-    openReports: 5,
-    urgentReports: 1,
-  });
-  const [error, setError] = useState<string | null>(null);
-
-  // Log whenever stats changes
   useEffect(() => {
-    console.log('=== STATS STATE UPDATED ===');
-    console.log('Stats object:', stats);
-    console.log('totalAnnonces:', stats.totalAnnonces);
-    console.log('totalUsers:', stats.totalUsers);
-  }, [stats]);
+    setMounted(true)
+  }, [])
 
-  const fetchData = useCallback(async () => {
-    try {
-      setError(null);
-      console.log('=== Admin: Attempting to fetch dashboard stats ===');
-      const statsData = await getDashboardStats();
-      console.log('=== Admin: Stats fetched successfully ===');
-      console.log('Stats data received:', statsData);
-      console.log('Stats data type:', typeof statsData);
-      console.log('Stats data keys:', statsData ? Object.keys(statsData) : 'null/undefined');
-      
-      if (statsData && typeof statsData === 'object') {
-        console.log('Setting stats state with:');
-        console.log('  totalAnnonces:', statsData.totalAnnonces);
-        console.log('  totalUsers:', statsData.totalUsers);
-        console.log('  openReports:', statsData.openReports);
-        setStats(statsData);
-      } else {
-        console.warn('Received invalid stats data, keeping mock data');
-      }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      console.error('=== Admin: Error fetching stats ===');
-      console.error('Error message:', errorMsg);
-      setError(errorMsg);
-      console.log('Keeping mock data as fallback');
+  useEffect(() => {
+    if (!loading && (!isAuthenticated || user?.role !== "admin")) {
+      router.replace("/")
     }
-  }, []);
+  }, [isAuthenticated, loading, user, router])
 
-  useEffect(() => {
-    // Don't wait for loading to complete, show mock data immediately
-    fetchData();
-  }, [fetchData]);
-
-  const riskData = [
-    {
-      name: 'Annonces standard',
-      value: stats.totalAnnonces - stats.reportedAnnonces,
-      fill: '#22c55e',
-    },
-    {
-      name: 'Annonces signalées',
-      value: stats.reportedAnnonces - stats.highRiskAnnonces,
-      fill: '#f97316',
-    },
-    {
-      name: 'Annonces haut risque',
-      value: stats.highRiskAnnonces,
-      fill: '#ef4444',
-    },
-  ];
-
-  const urgencyData = [
-    { name: 'Signalements urgent', value: stats.urgentReports, fill: '#ef4444' },
-    { name: 'Signalements standard', value: stats.openReports - stats.urgentReports, fill: '#f97316' },
-    { name: 'Signalements fermés', value: stats.totalReports - stats.openReports, fill: '#22c55e' },
-  ];
+  if (loading || !mounted) return null
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col" style={{ background: "linear-gradient(to bottom right, #F8F4F6, #F3EFF1)" }}>
       <Navbar />
       <main className="flex-1 py-12">
         <div className="mx-auto max-w-6xl px-6">
-          {/* Quick Debug */}
-          
+          {/* Header */}
+          <div className="mb-12">
+            <h1 className="text-3xl font-bold text-[#1F0C11] mb-2">
+              Tableau de Bord Admin
+            </h1>
+            <p className="text-[#1F0C11]/60">
+              Bienvenue {user?.firstName}! Gérez les signalements, utilisateurs et annonces
+            </p>
+          </div>
 
-          {error && (
-            <div className="mb-6 rounded-lg bg-red-50 dark:bg-red-950/20 p-4 border border-red-200 dark:border-red-800">
-              <p className="text-sm text-red-800 dark:text-red-200">
-                <strong>Erreur API:</strong> {error} (utilisation des données de test)
+          {/* Quick Stats Row */}
+          <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-lg bg-white p-4 shadow-sm hover:shadow-md transition-shadow" style={{ borderColor: "#B44362", borderWidth: "1px" }}>
+              <p className="text-sm text-[#1F0C11]/60 font-medium">Signalements</p>
+              <p className="text-2xl font-bold text-[#EC7578] mt-1">12</p>
+              <p className="text-xs text-[#1F0C11]/40 mt-2">+2 cette semaine</p>
+            </div>
+            <div className="rounded-lg bg-white p-4 shadow-sm hover:shadow-md transition-shadow" style={{ borderColor: "#B44362", borderWidth: "1px" }}>
+              <p className="text-sm text-[#1F0C11]/60 font-medium">Utilisateurs</p>
+              <p className="text-2xl font-bold text-[#FF7F50] mt-1">42</p>
+              <p className="text-xs text-[#1F0C11]/40 mt-2">2 bannis</p>
+            </div>
+            <div className="rounded-lg bg-white p-4 shadow-sm hover:shadow-md transition-shadow" style={{ borderColor: "#B44362", borderWidth: "1px" }}>
+              <p className="text-sm text-[#1F0C11]/60 font-medium">Annonces</p>
+              <p className="text-2xl font-bold text-[#B44362] mt-1">156</p>
+              <p className="text-xs text-[#1F0C11]/40 mt-2">12 signalées</p>
+            </div>
+            <div className="rounded-lg bg-white p-4 shadow-sm hover:shadow-md transition-shadow" style={{ borderColor: "#B44362", borderWidth: "1px" }}>
+              <p className="text-sm text-[#1F0C11]/60 font-medium">Santé Platform</p>
+              <p className="text-2xl font-bold mt-1" style={{ color: "#FF7F50" }}>96%</p>
+              <p className="text-xs text-[#1F0C11]/40 mt-2">Excellent</p>
+            </div>
+          </div>
+
+          {/* Main Cards Grid */}
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
+            {DASHBOARD_CARDS.map((card, index) => {
+              const Icon = card.icon
+              return (
+                <Link key={card.id} href={card.href}>
+                  <Card
+                    className={`h-full cursor-pointer shadow-sm hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 bg-gradient-to-br ${card.gradient} hover:bg-opacity-100`}
+                    style={{ borderWidth: "2px", borderColor: "#B44362" }}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div
+                          className="rounded-lg p-2 w-fit"
+                          style={{ backgroundColor: `${card.color}20` }}
+                        >
+                          <Icon
+                            className="h-6 w-6"
+                            style={{ color: card.color }}
+                          />
+                        </div>
+                        <ArrowRight className="h-5 w-5 text-[#1F0C11]/30 group-hover:translate-x-1 transition-transform" />
+                      </div>
+                      <CardTitle className="text-[#1F0C11] mt-3">
+                        {card.title}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <p className="text-sm text-[#1F0C11]/60 leading-relaxed">
+                        {card.description}
+                      </p>
+
+                      {/* Stats Section */}
+                      <div className="rounded-lg bg-white/50 p-3 border border-white/50">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-medium text-[#1F0C11]/60">
+                              {card.stats.label}
+                            </p>
+                            <p
+                              className="text-2xl font-bold mt-1"
+                              style={{ color: card.color }}
+                            >
+                              {card.stats.value}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-medium" style={{ color: "#FF7F50" }}>
+                              {card.stats.change}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Button */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-2 border-[#1F0C11]/10 hover:bg-[#1F0C11]/5"
+                      >
+                        Accéder
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Link>
+              )
+            })}
+          </div>
+
+          {/* Info Box */}
+          <div className="mt-12 rounded-lg p-4 flex gap-3" style={{ backgroundColor: "#EC7578", borderColor: "#B44362", borderWidth: "1px" }}>
+            <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: "#1F0C11" }} />
+            <div>
+              <h3 className="font-semibold text-sm" style={{ color: "#1F0C11" }}>
+                Conseils de modération
+              </h3>
+              <p className="text-sm mt-1" style={{ color: "#1F0C11" }}>
+                Consultez les signalements régulièrement et agissez rapidement pour maintenir une communauté saine et sécurisée.
               </p>
             </div>
-          )}
-
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold text-foreground mb-2">Dashboard Admin</h1>
-            <p className="text-muted-foreground">Surveillance et modération de la plateforme</p>
-          </div>
-
-          {/* Statistiques principales */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Annonces</CardTitle>
-                <Package className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.totalAnnonces}</div>
-                <p className="text-xs text-muted-foreground">annonces actives</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Utilisateurs</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.totalUsers}</div>
-                <p className="text-xs text-muted-foreground">inscrits</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Signalements</CardTitle>
-                <Flag className="h-4 w-4 text-destructive" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.openReports}</div>
-                <p className="text-xs text-muted-foreground">ouverts</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Haut Risque</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-yellow-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.highRiskAnnonces}</div>
-                <p className="text-xs text-muted-foreground">annonces critiques</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Alerte */}
-          {stats.urgentReports > 0 && (
-            <Card className="mb-8 border-destructive/50 bg-destructive/5">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <AlertTriangle className="h-5 w-5 text-destructive" />
-                  <div>
-                    <p className="font-semibold text-foreground">Alertes en temps réel</p>
-                    <p className="text-sm text-muted-foreground">
-                      {stats.urgentReports} signalements urgents | {stats.bannedUsers} utilisateurs bannis | {stats.highRiskAnnonces} annonces suspects
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Graphiques */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <Card>
-              <CardHeader>
-                <CardTitle>Distribution des risques</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={riskData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ value }) => value}
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {riskData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="mt-4 space-y-2">
-                  {riskData.map((item, index) => (
-                    <div key={index} className="flex items-center gap-2 text-sm">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.fill }}></div>
-                      <span className="text-muted-foreground">{item.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Urgence des signalements</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={urgencyData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ value }) => value}
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {urgencyData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="mt-4 space-y-2">
-                  {urgencyData.map((item, index) => (
-                    <div key={index} className="flex items-center gap-2 text-sm">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.fill }}></div>
-                      <span className="text-muted-foreground">{item.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Actions rapides */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <Link href="/admin/annonces">
-              <Card className="cursor-pointer hover:shadow-lg transition-shadow h-full">
-                <CardContent className="pt-6">
-                  <div className="text-3xl mb-2">📋</div>
-                  <h3 className="font-semibold text-foreground">Gestion Annonces</h3>
-                  <p className="text-sm text-muted-foreground mt-1">Voir les annonces suspects</p>
-                </CardContent>
-              </Card>
-            </Link>
-
-            <Link href="/admin/users">
-              <Card className="cursor-pointer hover:shadow-lg transition-shadow h-full">
-                <CardContent className="pt-6">
-                  <div className="text-3xl mb-2">👥</div>
-                  <h3 className="font-semibold text-foreground">Gestion Utilisateurs</h3>
-                  <p className="text-sm text-muted-foreground mt-1">Gérer les bans et risques</p>
-                </CardContent>
-              </Card>
-            </Link>
-
-            <Link href="/admin/reports">
-              <Card className="cursor-pointer hover:shadow-lg transition-shadow h-full">
-                <CardContent className="pt-6">
-                  <div className="text-3xl mb-2">🚩</div>
-                  <h3 className="font-semibold text-foreground">Signalements</h3>
-                  <p className="text-sm text-muted-foreground mt-1">Traiter les signalements</p>
-                </CardContent>
-              </Card>
-            </Link>
-
-            <Link href="/admin/analytics">
-              <Card className="cursor-pointer hover:shadow-lg transition-shadow h-full">
-                <CardContent className="pt-6">
-                  <div className="text-3xl mb-2">📊</div>
-                  <h3 className="font-semibold text-foreground">Analytics</h3>
-                  <p className="text-sm text-muted-foreground mt-1">Voir les statistiques</p>
-                </CardContent>
-              </Card>
-            </Link>
           </div>
         </div>
       </main>

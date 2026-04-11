@@ -13,6 +13,7 @@ import {
   Settings,
   LogOut,
   User,
+  Shield,
 } from "lucide-react"
 import { useState } from "react"
 import { useAuth } from "@/contexts/auth-context"
@@ -106,7 +107,7 @@ export function Navbar({ onSearchChange }: { onSearchChange?: (query: string, fi
                 <DropdownMenuTrigger asChild>
                   <button className="flex flex-col items-center gap-0.5 rounded-full transition-colors group cursor-pointer">
                     <Avatar className="h-9 w-9">
-                      <AvatarImage src={user?.profileImage as string | undefined} alt={`${user?.firstName} ${user?.lastName}`} />
+                      <AvatarImage src={user?.profilePhoto as string | undefined} alt={`${user?.firstName} ${user?.lastName}`} />
                       <AvatarFallback className="bg-primary text-primary-foreground text-[10px] font-semibold">
                         {userInitials}
                       </AvatarFallback>
@@ -152,6 +153,17 @@ export function Navbar({ onSearchChange }: { onSearchChange?: (query: string, fi
                       <span>À propos</span>
                     </Link>
                   </DropdownMenuItem>
+                  {user?.role === "admin" && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin" className="cursor-pointer text-[#B44362]">
+                          <Shield className="size-4 mr-2" />
+                          <span>Dashboard Admin</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
                     <LogOut className="size-4 mr-2" />

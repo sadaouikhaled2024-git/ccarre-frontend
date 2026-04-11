@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card"
 import { useState, useEffect } from "react"
 import { InterestedModal } from "@/components/interested-modal"
 import { ReportModal } from "@/components/report-modal"
+import { FraudWarning } from "@/components/fraud-warning"
 import { ChevronLeft, ChevronRight, Flag, Trash2, Heart, MoreVertical } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { annonceApi } from "@/lib/annonce-api"
@@ -201,6 +202,9 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
 
   return (
     <div className="space-y-8">
+      {/* Fraud Warning */}
+      <FraudWarning />
+
       <div className="grid gap-8 lg:grid-cols-3">
         {/* Image Gallery */}
         <div className="lg:col-span-2 space-y-2">
@@ -324,6 +328,7 @@ export function AnnouncementDetail({ id }: AnnouncementDetailProps) {
               announcementId={announcement._id}
               announcementTitle={announcement.title}
               announcementType={announcement.type}
+              ownerId={announcement.owner?._id || ""}
               ownerName={`${announcement.owner?.firstName || "Utilisateur"} ${announcement.owner?.lastName || ""}`}
             />
           </Card>

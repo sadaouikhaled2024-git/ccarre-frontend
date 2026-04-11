@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { getUsers, banUser, unbanUser } from '../../../lib/admin-api';
+import { getUsers, banUser, unbanUser, deleteUser } from '../../../lib/admin-api';
 import Link from 'next/link';
 import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { AlertTriangle, ChevronLeft } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, Trash2 } from 'lucide-react';
 
 function RiskBadge({ score }: { score: number }) {
   if (score >= 80) {
@@ -20,7 +20,7 @@ function RiskBadge({ score }: { score: number }) {
   } else if (score >= 20) {
     return <Badge className="bg-orange-600 text-white">🟠 Moyen ({score})</Badge>;
   }
-  return <Badge className="bg-green-600 text-white">🟢 Faible ({score})</Badge>;
+  return <Badge className="text-white" style={{ backgroundColor: "#B44362" }}>🟢 Faible ({score})</Badge>;
 }
 
 export default function AdminUsers() {
@@ -30,6 +30,7 @@ export default function AdminUsers() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [banModalOpen, setBanModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [banReason, setBanReason] = useState('');
 
@@ -75,6 +76,21 @@ export default function AdminUsers() {
       } catch (error) {
         console.error('Erreur:', error);
       }
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedUserId) return;
+
+    try {
+      await deleteUser(selectedUserId);
+      setDeleteModalOpen(false);
+      setSelectedUserId(null);
+      fetchUsers();
+      alert('Utilisateur supprimé avec succès');
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur lors de la suppression');
     }
   };
 
@@ -146,7 +162,7 @@ export default function AdminUsers() {
                             {user.isBanned ? (
                               <Badge className="bg-destructive text-white">🚫 Banni</Badge>
                             ) : (
-                              <Badge className="bg-green-600 text-white">✓ Actif</Badge>
+                              <Badge className="text-white" style={{ backgroundColor: "#FF7F50" }}>✓ Actif</Badge>
                             )}
                           </td>
                           <td className="px-6 py-4 text-sm">
@@ -156,7 +172,7 @@ export default function AdminUsers() {
                                   onClick={() => handleUnban(user._id)}
                                   size="sm"
                                   variant="outline"
-                                  className="text-green-600"
+                                  style={{ color: "#FF7F50" }}
                                 >
                                   Débannir
                                 </Button>
@@ -172,6 +188,18 @@ export default function AdminUsers() {
                                   Bannir
                                 </Button>
                               )}
+                              <Button
+                                onClick={() => {
+                                  setSelectedUserId(user._id);
+                                  setDeleteModalOpen(true);
+                                }}
+                                size="sm"
+                                variant="outline"
+                                className="text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Supprimer
+                              </Button>
                             </div>
                           </td>
                         </tr>
@@ -226,6 +254,26 @@ export default function AdminUsers() {
                 </Button>
                 <Button variant="destructive" onClick={handleBan}>
                   Bannir
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Modal Delete */}
+          <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Supprimer l'utilisateur</DialogTitle>
+                <DialogDescription>
+                  ⚠️ Cette action est irréversible. Voulez-vous vraiment supprimer cet utilisateur et tous ses comptes et messages?
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDeleteModalOpen(false)}>
+                  Annuler
+                </Button>
+                <Button variant="destructive" onClick={handleDelete}>
+                  Supprimer définitivement
                 </Button>
               </DialogFooter>
             </DialogContent>

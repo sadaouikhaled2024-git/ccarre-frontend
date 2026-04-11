@@ -94,7 +94,7 @@ export default function AdminAnalytics() {
             ))}
           </div>
 
-          {/* Infos Périodde */}
+          {/* Infos Période */}
           <Card className="mb-6">
             <CardContent className="pt-6">
               <p className="text-muted-foreground text-sm">
@@ -220,7 +220,7 @@ export default function AdminAnalytics() {
                 </div>
                 <div className="p-4 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">Croissance</p>
-                  <p className="text-2xl font-bold mt-1 text-green-600">
+                  <p className="text-2xl font-bold mt-1" style={{ color: "#FF7F50" }}>
                     {(analytics?.newAnnonces || 0) + (analytics?.newUsers || 0)}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">Nouvelles annonces + Utilisateurs</p>

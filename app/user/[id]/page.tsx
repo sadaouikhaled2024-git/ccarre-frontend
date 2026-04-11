@@ -18,6 +18,7 @@ interface ProfileUser {
   lastName?: string
   email?: string
   createdAt?: string
+  profilePhoto?: string
 }
 
 export default function PublicUserProfilePage() {
@@ -93,7 +94,7 @@ export default function PublicUserProfilePage() {
             <CardContent className="pt-6">
               <div className="flex flex-col items-center gap-6 md:flex-row md:items-start">
                 <Avatar className="size-24 border-4 border-primary/20">
-                  <AvatarImage src={undefined} alt={`${profileUser?.firstName ?? ""} ${profileUser?.lastName ?? ""}`} />
+                  <AvatarImage src={profileUser?.profilePhoto} alt={`${profileUser?.firstName ?? ""} ${profileUser?.lastName ?? ""}`} />
                   <AvatarFallback className="bg-primary/10 text-primary text-2xl">
                     {`${profileUser?.firstName?.[0] ?? ""}${profileUser?.lastName?.[0] ?? ""}` || "U"}
                   </AvatarFallback>
