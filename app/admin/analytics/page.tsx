@@ -94,7 +94,7 @@ export default function AdminAnalytics() {
             ))}
           </div>
 
-          {/* Infos Période */}
+          {/* Infos Périodde */}
           <Card className="mb-6">
             <CardContent className="pt-6">
               <p className="text-muted-foreground text-sm">
