@@ -1037,6 +1037,8 @@ export function MessagingPageContent({ initialParticipantId }: MessagingPageCont
                       const status = String((echange as any).statut || "").toLowerCase()
                       const isPending = status === "en_attente"
                       const isActive = status === "accepte" || status === "discussion" || status === "rendez_vous_accepte" || status === "rendez_vous_propose"
+                      const shouldShowActionsBar = (isPending && isOwner) || isActive
+                      if (!shouldShowActionsBar) return null
                       return (
                         <div className="p-3 border-t border-border bg-card flex gap-2 justify-end flex-wrap">
                           {isPending && isOwner && (
