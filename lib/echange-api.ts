@@ -190,7 +190,7 @@ export const echangeApi = {
 
   completeWithDetails(id: string, lieuEchange: string, prixFinal?: number, token?: string) {
     return request<EchangeResponse>(
-      `/api/echanges/${id}/complete-with-details`,
+      `/api/echanges/${id}/complete`,
       {
         method: "PUT",
         body: JSON.stringify({ lieuEchange, prixFinal }),
