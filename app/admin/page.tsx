@@ -85,11 +85,11 @@ export default function AdminDashboardPage() {
     setMounted(true)
   }, [])
 
-  useEffect(() => {
-    if (!loading && (!isAuthenticated || user?.role !== "admin")) {
-      router.replace("/")
-    }
-  }, [isAuthenticated, loading, user, router])
+ // useEffect(() => {
+ //   if (!loading && (!isAuthenticated || user?.role !== "admin")) {
+ //     router.replace("/")
+ //   }
+ // }, [isAuthenticated, loading, user, router])
 
   if (loading || !mounted) return null
 
