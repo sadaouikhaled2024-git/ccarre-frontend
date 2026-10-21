@@ -59,22 +59,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // On mount, check for existing token in localStorage
   useEffect(() => {
     const stored = localStorage.getItem(TOKEN_KEY)
-    if (stored) {
-      setToken(stored)
-      authApi
-        .getMe(stored)
-        .then((me) => {
-          setUser(me)
-        })
-        .catch(() => {
-          // Token might be expired → clear it
-          localStorage.removeItem(TOKEN_KEY)
-          setToken(null)
-        })
-        .finally(() => setLoading(false))
-    } else {
+    if (!stored) {
       setLoading(false)
+      return
     }
+
+    setToken(stored)
+    authApi
+      .getMe(stored)
+      .then((me) => {
+        setUser(me)
+      })
+      .catch(() => {
+        // Ne pas supprimer le token immédiatement pour éviter de déconnecter sur simple erreur réseau
+        // Il sera invalidé côté API sur la prochaine requête si expiré
+      })
+      .finally(() => setLoading(false))
   }, [])
 
   return (

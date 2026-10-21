@@ -3,6 +3,7 @@ import { DM_Sans } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/contexts/auth-context'
 import { CreateAnnouncementButton } from '@/components/create-announcement-form'
+import { BannedUserGuard } from '@/components/banned-user-guard'
 
 const dmSans = DM_Sans({ subsets: ['latin'] })
 
@@ -20,6 +21,7 @@ export default function RootLayout({
     <html lang="fr">
       <body className={`${dmSans.className} font-sans antialiased`}>
         <AuthProvider>
+          <BannedUserGuard />
           {children}
           <CreateAnnouncementButton />
         </AuthProvider>

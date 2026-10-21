@@ -103,20 +103,38 @@ export const annonceApi = {
 
   // Modifier une annonce
   async update(id: string, formData: FormData, token: string): Promise<AnnonceResponse> {
+    console.log("🔧 [API] Appel PUT /api/annonces/" + id)
+    console.log("🔧 [API] Token:", token.substring(0, 20) + "...")
+    console.log("🔧 [API] FormData entries:")
+    for (let [key, value] of formData.entries()) {
+      if (value instanceof File) {
+        console.log(`  - ${key}: File(${(value as File).name})`)
+      } else {
+        console.log(`  - ${key}: ${value}`)
+      }
+    }
+
     const res = await fetch(`${API_URL}/api/annonces/${id}`, {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${token}`,
+        // DO NOT set Content-Type for multipart/form-data
+        // Browser will set it automatically with the boundary
       },
       body: formData,
     })
 
+    console.log("🔧 [API] Réponse status:", res.status)
+    const data = await res.json().catch(() => ({}))
+    console.log("🔧 [API] Réponse body:", data)
+
     if (!res.ok) {
-      const error = await res.json().catch(() => ({}))
+      const error = data
+      console.error("❌ [API] Erreur:", error.message || "Erreur lors de la modification")
       throw new Error(error.message || "Erreur lors de la modification")
     }
 
-    return res.json()
+    return data as AnnonceResponse
   },
 
   // Supprimer une annonce

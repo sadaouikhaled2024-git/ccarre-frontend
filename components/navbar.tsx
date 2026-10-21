@@ -13,10 +13,11 @@ import {
   Settings,
   LogOut,
   User,
+  Shield,
 } from "lucide-react"
 import { useState } from "react"
 import { useAuth } from "@/contexts/auth-context"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,11 +26,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { SearchBar } from "@/components/search-bar"
+import { NotificationsDropdown } from "@/components/notifications-dropdown"
 
-export function Navbar() {
+export function Navbar({ onSearchChange }: { onSearchChange?: (query: string, filters?: any) => void } = {}) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { isAuthenticated, user, logout } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
 
   function handleLogout() {
     logout()
@@ -44,11 +48,19 @@ export function Navbar() {
     <header className="sticky top-0 z-50 bg-background border-b border-border">
       <nav className="mx-auto flex h-[60px] max-w-6xl items-center justify-between px-6">
         <Link href={isAuthenticated ? "/announcements" : "/"} className="flex items-center">
-          <Image src="/ccare.png" alt="CCarré" width={300} height={120} className="h-16 w-auto" />
+          <Image src="/ccare.png" alt="CCarré" width={300} height={120} className="h-27 w-auto" />
         </Link>
 
         {/* Desktop nav */}
-        <div className="hidden items-center gap-5 md:flex">
+        <div className="hidden items-center gap-5 md:flex w-full">
+          {/* Search Bar - show for authenticated users */}
+          {isAuthenticated && (
+            <div className="flex-1 flex justify-center">
+              <SearchBar />
+            </div>
+          )}
+
+          <div className="flex items-center gap-5 ml-auto">
           {isAuthenticated ? (
             <>
               {/* Annonces */}
@@ -75,9 +87,12 @@ export function Navbar() {
                 <div className="h-0.5 w-10 bg-rose-500 origin-center scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
               </Link>
 
+              {/* Notifications */}
+              <NotificationsDropdown />
+
               {/* Messagerie */}
               <Link
-                href="/messaging"
+                href="/messagerie"
                 className="group flex flex-col items-center gap-0.5 transition-colors"
               >
                 <MessageCircle strokeWidth={2} className="size-6 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -90,16 +105,16 @@ export function Navbar() {
               {/* Profile Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex flex-col items-center gap-0.5 rounded-full transition-colors group">
+                  <button className="flex flex-col items-center gap-0.5 rounded-full transition-colors group cursor-pointer">
                     <Avatar className="h-9 w-9">
-                      <AvatarImage src={user?.profileImage as string | undefined} alt={`${user?.firstName} ${user?.lastName}`} />
+                      <AvatarImage src={user?.profilePhoto as string | undefined} alt={`${user?.firstName} ${user?.lastName}`} />
                       <AvatarFallback className="bg-primary text-primary-foreground text-[10px] font-semibold">
                         {userInitials}
                       </AvatarFallback>
                     </Avatar>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuContent align="end" className="w-56">
                   <div className="px-2 py-1.5">
                     <p className="text-sm font-semibold text-foreground">
                       {user?.firstName} {user?.lastName}
@@ -110,11 +125,24 @@ export function Navbar() {
                   <DropdownMenuItem asChild>
                     <Link href="/profile" className="cursor-pointer">
                       <User className="size-4 mr-2" />
-                      <span>Profil</span>
+                      <span>Mon Profil</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/profile" className="cursor-pointer">
+                    <Link href="/mes-annonces" className="cursor-pointer">
+                      <ShoppingCart className="size-4 mr-2" />
+                      <span>Mes Annonces</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/historique-echanges" className="cursor-pointer">
+                      <MessageCircle className="size-4 mr-2" />
+                      <span>Historique des échanges</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/parametres" className="cursor-pointer">
                       <Settings className="size-4 mr-2" />
                       <span>Paramètres</span>
                     </Link>
@@ -125,6 +153,17 @@ export function Navbar() {
                       <span>À propos</span>
                     </Link>
                   </DropdownMenuItem>
+                  {user?.role === "admin" && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin" className="cursor-pointer text-[#B44362]">
+                          <Shield className="size-4 mr-2" />
+                          <span>Dashboard Admin</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
                     <LogOut className="size-4 mr-2" />
@@ -164,6 +203,7 @@ export function Navbar() {
               </Button>
             </>
           )}
+          </div>
         </div>
 
         {/* Mobile toggle */}
@@ -204,7 +244,7 @@ export function Navbar() {
                   Favoris
                 </Link>
                 <Link
-                  href="/messaging"
+                  href="/messagerie"
                   className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
                   onClick={() => setMobileOpen(false)}
                 >

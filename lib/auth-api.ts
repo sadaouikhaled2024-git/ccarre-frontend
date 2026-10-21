@@ -21,12 +21,20 @@ export interface LoginPayload {
   password: string
 }
 
+export interface ChangePasswordPayload {
+  currentPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
 export interface AuthUser {
   _id: string
   firstName: string
   lastName: string
   email: string
   isVerified?: boolean
+  role?: 'user' | 'admin'
+  isBanned?: boolean
   createdAt?: string
   updatedAt?: string
   [key: string]: unknown
@@ -92,11 +100,21 @@ export const authApi = {
   },
 
   getMe(token: string) {
-    return request<AuthUser>("/api/auth/me", {
+    return request<{ success: boolean; data: { user: AuthUser } }>("/api/auth/me", {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
       },
+    }).then((res) => res.data?.user)
+  },
+
+  changePassword(payload: ChangePasswordPayload, token: string) {
+    return request<{ success: boolean; message: string }>("/api/auth/change-password", {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
     })
   },
 }
