@@ -33,7 +33,7 @@ Pourtant, les échanges entre étudiants restent souvent dispersés sur différe
  <p className="text-lg text-muted-foreground leading-relaxed">Notre objectif est de proposer un espace centralisé, accessible à la communauté d'Aix-Marseille Université, permettant aux étudiants de publier des annonces, acheter, vendre et échanger des biens plus facilement.
 </p>
  <p className="text-lg text-muted-foreground leading-relaxed">Au-delà d'une simple plateforme de petites annonces, CCarré ambitionne de favoriser l'entraide, les échanges locaux et une consommation plus responsable au sein de la communauté universitaire.
-</p>              </p>
+</p>              
             </Card>
 
             {/* Features */}
