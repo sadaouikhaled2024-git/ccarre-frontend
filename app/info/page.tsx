@@ -28,11 +28,11 @@ export default function InfoPage() {
               <p className="text-lg text-muted-foreground leading-relaxed">
                 La vie étudiante implique de nombreux besoins matériels et pratiques : trouver des manuels universitaires à moindre coût, acheter du mobilier, revendre des équipements dont on n'a plus besoin ou encore donner une seconde vie à des objets.
 Pourtant, les échanges entre étudiants restent souvent dispersés sur différentes plateformes et groupes de discussion.
-              </p> <p className="text-lg text-muted-foreground leading-relaxed">>CCarré est né de cette problématique.
+              </p> <p className="text-lg text-muted-foreground leading-relaxed">CCarré est né de cette problématique.
 </p>
- <p className="text-lg text-muted-foreground leading-relaxed">>Notre objectif est de proposer un espace centralisé, accessible à la communauté d'Aix-Marseille Université, permettant aux étudiants de publier des annonces, acheter, vendre et échanger des biens plus facilement.
+ <p className="text-lg text-muted-foreground leading-relaxed">Notre objectif est de proposer un espace centralisé, accessible à la communauté d'Aix-Marseille Université, permettant aux étudiants de publier des annonces, acheter, vendre et échanger des biens plus facilement.
 </p>
- <p className="text-lg text-muted-foreground leading-relaxed">>Au-delà d'une simple plateforme de petites annonces, CCarré ambitionne de favoriser l'entraide, les échanges locaux et une consommation plus responsable au sein de la communauté universitaire.
+ <p className="text-lg text-muted-foreground leading-relaxed">Au-delà d'une simple plateforme de petites annonces, CCarré ambitionne de favoriser l'entraide, les échanges locaux et une consommation plus responsable au sein de la communauté universitaire.
 </p>              </p>
             </Card>
 
