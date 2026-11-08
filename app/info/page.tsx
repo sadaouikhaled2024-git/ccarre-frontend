@@ -147,7 +147,7 @@ CCarré est un projet étudiant indépendant, initié dans le but de faciliter l
                   <span className="font-semibold text-foreground">Développement et conception :</span>
                 </p>
                 <p className="text-muted-foreground">
-                  <span className="font-semibold text-foreground">Sadaoui Khaled</span> - co-founder, Full-stack developper
+                  <span className="font-semibold text-foreground">Sadaoui Khaled</span> - co-founder, Full-stack developper and DevOps
                 </p>
                 <p className="text-muted-foreground">
                   <span className="font-semibold text-foreground">Macyl Moumou</span> - co-founder, Full-stack developper and Product Owner
