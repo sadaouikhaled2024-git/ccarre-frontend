@@ -26,10 +26,14 @@ export default function InfoPage() {
             <Card className="bg-gradient-to-br from-card to-card/50 p-8">
               <h2 className="mb-4 text-2xl font-bold text-foreground">Notre Mission</h2>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                CCarré est une plateforme innovante créée pour faciliter l'échange de biens et
-                de services entre étudiants de l'Université Aix-Marseille. Notre  objectif est de
-                créer une communauté solidaire où les étudiants peuvent acheter, vendre et
-                échanger des articles de manière sécurisée et conviviale.
+                La vie étudiante implique de nombreux besoins matériels et pratiques : trouver des manuels universitaires à moindre coût, acheter du mobilier, revendre des équipements dont on n'a plus besoin ou encore donner une seconde vie à des objets.
+Pourtant, les échanges entre étudiants restent souvent dispersés sur différentes plateformes et groupes de discussion.
+
+CCarré est né de cette problématique.
+
+Notre objectif est de proposer un espace centralisé, accessible à la communauté d'Aix-Marseille Université, permettant aux étudiants de publier des annonces, acheter, vendre et échanger des biens plus facilement.
+
+Au-delà d'une simple plateforme de petites annonces, CCarré ambitionne de favoriser l'entraide, les échanges locaux et une consommation plus responsable au sein de la communauté universitaire.
               </p>
             </Card>
 
@@ -121,9 +125,27 @@ export default function InfoPage() {
             <Card className="bg-muted/30 p-8">
               <h2 className="mb-4 text-2xl font-bold text-foreground">À Propos du Projet</h2>
               <p className="mb-4 text-muted-foreground">
-                CCarré est un projet étudiant développé par et pour les étudiants de l'Université
-                Aix-Marseille. Nous sommes passionnés par la création de solutions qui facilitent
-                la vie universitaire.
+                À propos du projet
+
+CCarré – La plateforme d'échange entre étudiants d'Aix-Marseille Université
+
+CCarré est un projet étudiant indépendant, initié dans le but de faciliter les échanges de biens entre les étudiants d'Aix-Marseille Université.
+
+Développé à partir d'un constat simple, le projet répond à un besoin concret de la vie universitaire : permettre aux étudiants de trouver plus facilement des biens utiles à leur quotidien, tout en donnant une seconde vie aux objets dont d'autres n'ont plus besoin.
+
+À travers une plateforme centralisée, CCarré propose un espace où les étudiants peuvent publier des annonces, acheter, vendre et découvrir des articles dans différentes catégories, notamment les livres, le matériel informatique et le mobilier.
+
+Au-delà de sa dimension pratique, le projet porte une ambition plus large : encourager l'entraide étudiante, favoriser l'économie circulaire et renforcer les échanges au sein de la communauté universitaire.
+
+Une initiative étudiante
+
+CCarré est conçu et développé dans une démarche indépendante, avec la volonté de proposer une solution numérique adaptée aux besoins de la communauté étudiante.
+
+Le projet dispose d'une première version fonctionnelle et poursuit son développement afin d'améliorer l'expérience utilisateur, enrichir ses fonctionnalités et explorer de nouvelles possibilités d'utilisation au sein de l'université.
+
+Notre ambition
+
+Faire de CCarré un espace d'échange accessible et utile aux étudiants d'Aix-Marseille Université, en favorisant une communauté plus connectée, solidaire et responsable.
               </p>
               <div className="flex flex-col gap-2 text-sm">
                 <p className="text-muted-foreground">
@@ -133,7 +155,25 @@ export default function InfoPage() {
                   <span className="font-semibold text-foreground">Année :</span> 2026
                 </p>
                 <p className="text-muted-foreground">
-                  <span className="font-semibold text-foreground">Statut :</span> Projet étudiant
+                  <span className="font-semibold text-foreground">Statut :</span> Projet étudiant indépendant
+                </p>
+                <p className="text-muted-foreground">
+                  <span className="font-semibold text-foreground">Développement et conception :</span>
+                </p>
+                <p className="text-muted-foreground">
+                  <span className="font-semibold text-foreground">Sadaoui Khaled</span> - co-founder, Full-stack developper
+                </p>
+                <p className="text-muted-foreground">
+                  <span className="font-semibold text-foreground">Macyl Moumou</span> - co-founder, Full-stack developper and Product Owner
+                </p>
+                <p className="text-muted-foreground">
+                  <span className="font-semibold text-foreground">Lydia Meziane</span> - Scrum Master
+                </p>
+                <p className="text-muted-foreground">
+                  <span className="font-semibold text-foreground">Rassoul Rayane</span> - Frontend Developper
+                </p>
+                 <p className="text-muted-foreground">
+                  <span className="font-semibold text-foreground">Djoumer Rayan</span> - Backend Developper
                 </p>
               </div>
             </Card>
@@ -156,7 +196,7 @@ export default function InfoPage() {
                   Pour toute question concernant la plateforme ou vos données, n'hésitez pas
                   à nous contacter.
                 </p>
-                <a href="mailto:contact@ccarre.local" className="inline-block text-primary hover:text-primary/80 font-semibold transition-colors">
+                <a href="mailto:sadaouikhaled2024@gmail.com" className="inline-block text-primary hover:text-primary/80 font-semibold transition-colors">
                   Nous contacter →
                 </a>
               </Card>
